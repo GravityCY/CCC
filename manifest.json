@@ -1,3 +1,3 @@
-{"files": [
-"furnace.lua","lib/Files.lua","lib/Path.lua","lib/EasyAddress.lua","lib/Address.lua","lib/Sides.lua","lib/TubbyOld.lua","lib/Std.lua","lib/Graphics.lua","lib/Tubby.lua","lib/Helper.lua","lib/lang/easy_address/en.json","lib/lang/easy_address/gr.json","lib/Inventorio.lua","lib/Ask.lua","lib/Language.lua","lib/String.lua","lib/AutoPrograms.lua","lib/Identifier.lua","lib/Loggy.lua","lib/Peripheral.lua","autochopper.lua","miner.lua","smopper.lua"
-]}
+{"files": {
+"furnace.lua": true,"lib/Files.lua": true,"lib/Path.lua": true,"lib/EasyAddress.lua": true,"lib/Address.lua": true,"lib/Sides.lua": true,"lib/TubbyOld.lua": true,"lib/Std.lua": true,"lib/Graphics.lua": true,"lib/Tubby.lua": true,"lib/Helper.lua": true,"lib/Inventorio.lua": true,"lib/Ask.lua": true,"lib/Language.lua": true,"lib/String.lua": true,"lib/AutoPrograms.lua": true,"lib/Identifier.lua": true,"lib/Loggy.lua": true,"lib/Peripheral.lua": true,"autochopper.lua": true,"data/language/easy_address/en.json": true,"data/language/easy_address/gr.json": true,"miner.lua": true,"smopper.lua": true
+}}
