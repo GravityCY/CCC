@@ -7,6 +7,9 @@ local Std = require("lib.Std");
 
 local EasyAddress = {};
 
+local AutoPrograms = package.loaded["AutoPrograms"];
+AutoPrograms.fetchDirectory("/data/language/easy_address")
+
 --- Everytime you connect a peripheral do you want to confirm the address? (y/n):
 local SHOULD_CONFIRM_KEY = "easy_address:message.should_confirm";
 --- Select one of the following: 

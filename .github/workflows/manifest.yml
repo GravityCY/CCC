@@ -16,15 +16,15 @@ jobs:
 
       - name: Generate manifest
         run: |
-          echo '{"files": [' > manifest.json
+          echo '{"files": {' > manifest.json
           find . -type f \
             ! -path "./.git/*" \
             ! -path "./.github/*" \
             ! -name "manifest.json" \
             | sed 's|^\./||' \
-            | sed 's/.*/"&"/' \
+            | sed 's/.*/"&": true/' \
             | paste -sd, - >> manifest.json
-          echo ']}' >> manifest.json
+          echo '}}' >> manifest.json
 
       - name: Commit manifest
         run: |
