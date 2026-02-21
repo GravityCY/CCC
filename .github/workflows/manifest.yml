@@ -2,7 +2,7 @@ name: Generate manifest
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
 
 permissions:
   contents: write
