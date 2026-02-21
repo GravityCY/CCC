@@ -2,9 +2,9 @@
 --- Description: A library for working with files.
 --- Version: 0.1.0
 
-local Path = require("Path");
+local Path = require("lib.Path");
 local Logger = package.loaded["Logger"];
-local Helper = require("Helper");
+local Helper = require("lib.Helper");
 
 local NAMESPACE = "files";
 -- local LOGGER = Logger.get(NAMESPACE);

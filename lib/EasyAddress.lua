@@ -1,9 +1,9 @@
-local Language = require("Language");
-local Identifier = require("Identifier");
-local Helper = require("Helper")
-local Ask = require("Ask");
-local Graphics = require("Graphics")
-local Std = require("Std");
+local Language = require("lib.Language");
+local Identifier = require("lib.Identifier");
+local Helper = require("lib.Helper")
+local Ask = require("lib.Ask");
+local Graphics = require("lib.Graphics")
+local Std = require("lib.Std");
 
 local EasyAddress = {};
 

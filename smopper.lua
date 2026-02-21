@@ -42,4 +42,4 @@ function require(name)
     return oldRequire(name)
 end
 
-local EasyAddress = require("lib.Test");
+local EasyAddress = require("lib.EasyAddress");

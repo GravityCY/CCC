@@ -1,5 +1,5 @@
-local Peripheral = require("Peripheral");
-local Helper = require("Helper")
+local Peripheral = require("lib.Peripheral");
+local Helper = require("lib.Helper")
 
 local _def = Helper.def;
 

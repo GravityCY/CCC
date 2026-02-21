@@ -1,6 +1,6 @@
-local Files = require("Files")
-local Path = require("Path")
-local Helper = require("Helper");
+local Files = require("lib.Files")
+local Path = require("lib.Path")
+local Helper = require("lib.Helper");
 
 local Loggy = {};
 

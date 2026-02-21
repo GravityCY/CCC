@@ -2,7 +2,7 @@
 --- Description: A library for working with paths.
 --- Version: 0.2.0
 
-local String = require("String");
+local String = require("lib.String");
 
 local Path = {};
 

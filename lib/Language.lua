@@ -1,8 +1,8 @@
-local Loggy = require("Loggy");
-local Path = require("Path");
-local Identifier = require("Identifier")
-local Helper = require("Helper");
-local Std = require("Std");
+local Loggy = require("lib.Loggy");
+local Path = require("lib.Path");
+local Identifier = require("lib.Identifier")
+local Helper = require("lib.Helper");
+local Std = require("lib.Std");
 
 -- TODO: Redesign so that Language is a Global Instance, that anyone can access, without needing to create a language instance per user
 

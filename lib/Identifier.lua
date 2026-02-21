@@ -1,4 +1,4 @@
-local String = require("String");
+local String = require("lib.String");
 
 local Identifier = {};
 Identifier.__index = Identifier;

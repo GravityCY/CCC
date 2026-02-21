@@ -4,10 +4,10 @@
 
 ---@diagnostic disable: redundant-parameter
 
-local Helper = require("Helper");
-local Sides = require("Sides");
-local Inventorio = require("Inventorio")
-local Peripheral = require("Peripheral")
+local Helper = require("lib.Helper");
+local Sides = require("lib.Sides");
+local Inventorio = require("lib.Inventorio")
+local Peripheral = require("lib.Peripheral")
 
 local _def = Helper.def;
 local _if = Helper._if;

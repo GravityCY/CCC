@@ -2,8 +2,8 @@
 --- Description: A library for working with peripherals.
 --- Version: 0.2.5
 
-local Helper = require("Helper");
-local Address = require("Address");
+local Helper = require("lib.Helper");
+local Address = require("lib.Address");
 
 local _def = Helper._def;
 local _if = Helper._if;

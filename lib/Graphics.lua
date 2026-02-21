@@ -1,4 +1,4 @@
-local Helper = require("Helper");
+local Helper = require("lib.Helper");
 
 local Graphics = {};
 
