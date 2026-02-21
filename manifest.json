@@ -1,0 +1,3 @@
+{"files": [
+"furnace.lua","lib/Files.lua","lib/Path.lua","lib/EasyAddress.lua","lib/Address.lua","lib/Sides.lua","lib/TubbyOld.lua","lib/Std.lua","lib/Graphics.lua","lib/Tubby.lua","lib/Helper.lua","lib/lang/easy_address/en.json","lib/lang/easy_address/gr.json","lib/Inventorio.lua","lib/Ask.lua","lib/Language.lua","lib/String.lua","lib/AutoPrograms.lua","lib/Identifier.lua","lib/Loggy.lua","lib/Peripheral.lua","autochopper.lua","miner.lua","smopper.lua"
+]}
