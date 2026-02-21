@@ -1,0 +1,10 @@
+{
+    "message.wait": "Energopoieisete to antikeimeno '%s'...",
+    "message.wait_multi": "Energopoieisete ena antikeimeno stin katigoria '%s'...",
+    "message.desc_info": "Parapano plhroforias diathesimes: ",
+    "message.desc_value": "'%s'",
+    "message.select_multi": "Dialeksete ena apo ta akolouthonta: ",
+    "message.do_multi": "Thelete na ta diakleksete ola? (y/n): ",
+    "message.confirm": "Eisaste sigouroi pos thelete to antikeimeno '%s' os '%s'? (y/n): ",
+    "message.confirm_multi": "Eisaste sigouroi pos thelete ta antikeimena '%s' os '%s'? (y/n): "
+}

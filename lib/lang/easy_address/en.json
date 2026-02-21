@@ -1,0 +1,22 @@
+{
+    "message.should_confirm": "Everytime you connect a peripheral do you want to confirm the address? (y/n): ",
+    "message.select_multiple": "Select one of the following: ",
+    "message.desc_info": "Additional Information is Available: ",
+    "message.desc_value": "'%s'",
+
+    "message.wait_one": "Please enable the peripheral '%s'...",
+    "message.confirm_address": "Are you sure you want to set the peripheral '%s' as '%s'? (y/n): ",
+    
+    "message.wait_list": "Please enable/disable peripherals in the category of '%s'...",
+    "message.confirm_add_all": "Found multiple peripherals, do you want to add them all? (y/n): ",
+    "message.confirm_remove_all": "Found multiple peripherals, do you want to remove them all? (y/n): ",
+
+    "message.added": "Added '%s' to '%s'.",
+    "message.removed": "Removed '%s' from '%s'.",
+
+    "message.press_done": "Press 'Enter' to exit.",
+    "message.confirm_exit": "Are you sure you want to exit? (y/n): ",
+
+    "message.confirm_add_addresses": "Are you sure you want to add '%s' to '%s'? (y/n): ",
+    "message.confirm_remove_addresses": "Are you sure you want to remove '%s' from '%s'? (y/n): "
+}
