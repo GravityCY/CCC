@@ -22,8 +22,7 @@ jobs:
             ! -path "./.github/*" \
             ! -name "manifest.json" \
             | sed 's|^\./||' \
-            | sed 's/.*/"&": true/' \
-            | paste -sd, - >> manifest.json
+            | sed 's/.*/"&": true,/' >> manifest.json
           echo '}}' >> manifest.json
 
       - name: Commit manifest
