@@ -1,5 +1,4 @@
-local BASE_URL = "https://raw.githubusercontent.com/GravityCY/CCC/master/"
-
+local BASE_URL = "https://raw.githubusercontent.com/GravityCY/CCC/refs/heads/master/lib"
 local oldRequire = require
 
 function require(name)
