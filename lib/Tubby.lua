@@ -5,7 +5,7 @@
 ---@diagnostic disable: redundant-parameter
 
 local Helper = require("lib.Helper");
-local Sides = require("lib.Sides");
+local Sides = require("lib.Sides"); 
 local Inventorio = require("lib.Inventorio")
 local Peripheral = require("lib.Peripheral")
 
@@ -14,6 +14,7 @@ local _if = Helper._if;
 
 local facing = Sides.FORWARD;
 local pos = vector.new(0, 0, 0);
+local prevSlot = nil;
 
 local Tubby = {};
 Tubby.doBlacklist = true;
@@ -537,6 +538,17 @@ function Tubby.select(slot)
     return slot;
 end
 
+function Tubby.tempSelect(slot)
+    if (prevSlot ~= nil) then
+        turtle.select(prevSlot);
+        prevSlot = nil;
+        return;
+    end
+    
+    prevSlot = turtle.getSelectedSlot();
+    if (slot ~= nil) then turtle.select(slot); end
+end
+
 function Tubby.selectEmpty()
     return Tubby.select(Tubby.findEmptySlot());
 end
@@ -583,21 +595,21 @@ end
 --- <b>Find an item by callback</b> <br>
 --- Given a function that accepts as arguments, an item object, and a slot number,
 --- returns a slot number that the function returns as true.
----@param cb function Function that receives as arguments, an item object, a slot number, and a function to request the item with more detail; returns boolean.
+---@param predicate function Function that receives as arguments, an item object, a slot number, and a function to request the item with more detail; returns boolean.
 ---@return integer|nil slot
-function Tubby.findItemPredicate(cb, allowNils)
-    allowNils = _def(allowNils, false);
+function Tubby.findItemPredicate(predicate, allowNils)
+    if (allowNils == nil) then allowNils = false; end
 
     local function detail(slot)
         return function()
-            turtle.getItemDetail(slot, true);
+            return turtle.getItemDetail(slot, true);
         end
     end
 
-    for i = 1, 16 do
-        local item = turtle.getItemDetail(i);
-        if (allowNils and cb(item, i)) then return i; end
-        if (not allowNils and item ~= nil and cb(item, i, detail(i))) then return i; end
+    for slot = 1, 16 do
+        local item = turtle.getItemDetail(slot);
+        if (allowNils and predicate(item, slot)) then return slot; end
+        if (not allowNils and item ~= nil and predicate(item, slot, detail(slot))) then return slot; end
     end
 
     return -1;
@@ -645,6 +657,25 @@ function Tubby.countCB(cb)
         end
     end
     return count;
+end
+
+function Tubby.compact()
+    local min = 1;
+    for i = 16, 1, -1 do
+        local item = turtle.getItemDetail(i);
+        if (item ~= nil) then
+            for j = min, i do
+                item = turtle.getItemDetail(j);
+                if (item == nil) then
+                    turtle.select(i);
+                    turtle.transferTo(j);
+                    min = j + 1;
+                    if (min > i) then return end
+                    break;
+                end
+            end
+        end
+    end
 end
 
 --- <b>Get Selected Item</b>

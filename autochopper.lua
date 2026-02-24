@@ -1,6 +1,6 @@
-local Tubby = require("Tubby");
-local Sides = require("Sides");
-local Std = require("Std");
+local Tubby = require("lib.Tubby");
+local Sides = require("lib.Sides");
+local Std = require("lib.Std");
 
 local arg = ...;
 
@@ -144,7 +144,8 @@ local function hasEnoughFuel(distance)
 end
 
 local function refuel()
-    local slot = Tubby.findItemByName("minecraft:charcoal");
+    local slot = Tubby.findItemName("minecraft:charcoal");
+    if (slot == -1) then return false; end
     Tubby.tempSelect(slot);
     local success = turtle.refuel(64);
     Tubby.tempSelect()

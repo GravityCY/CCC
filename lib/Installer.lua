@@ -1,56 +1,44 @@
-local AutoPrograms = {
+local Installer = {
     BASE_URL = "https://raw.githubusercontent.com/GravityCY/CCC/refs/heads/master"
 }
 
-package.loaded["AutoPrograms"] = AutoPrograms;
+package.loaded["Installer"] = Installer;
 
-function AutoPrograms.getManifest()
-    if (AutoPrograms.MANIFEST ~= nil) then return AutoPrograms.MANIFEST; end
-    local f = http.get(AutoPrograms.BASE_URL .. "/manifest.json");
-    AutoPrograms.MANIFEST = textutils.unserializeJSON(f.readAll());
+function Installer.getManifest()
+    if (Installer.MANIFEST ~= nil) then return Installer.MANIFEST; end
+    local f = http.get(Installer.BASE_URL .. "/manifest.json");
+    Installer.MANIFEST = textutils.unserializeJSON(f.readAll());
     f.close();
-    return AutoPrograms.MANIFEST;
+    return Installer.MANIFEST;
 end
 
-function AutoPrograms.fetchDirectory(repoDir)
+function Installer.fetchDirectory(repoDir)
     if (http == nil) then
         error("HTTP is disabled in ComputerCraft config!")
     end
 
-    local manifest = AutoPrograms.getManifest();
+    local manifest = Installer.getManifest();
     repoDir = repoDir:gsub("^/", "")
     repoDir = repoDir:gsub("/+$", "") .. "/"
 
     for _, path in ipairs(manifest.files) do
         if (path:sub(1, #repoDir) == repoDir) then
-            local relative = path:sub(#repoDir + 1);
-
-            local target = fs.combine(repoDir, relative);
-
-            local dir = fs.getDir(target);
-            if (dir ~= "" and not fs.exists(dir)) then
-                fs.makeDir(dir);
-            end
-            
-            local url = manifest.base .. path;
-            print("Downloading: ", path);
-            
-            shell.run("wget", url, target);
+            Installer.fetch(path);
         end
     end
 end
 
-function AutoPrograms.fetch(file)
+function Installer.fetch(file)
     if (fs.exists(file)) then return end
 
     if (http == nil) then
         error("HTTP is disabled in ComputerCraft config!")
     end
 
-    local manifest = AutoPrograms.getManifest();
+    local manifest = Installer.getManifest();
     if (manifest.files[file] == nil) then return end
 
-    local url = AutoPrograms.BASE_URL .. file
+    local url = Installer.BASE_URL .. file
 
     local response = http.get(url)
     if (not response) then
@@ -86,9 +74,17 @@ function require(name)
     print("Module '" .. name .. "' not found. Attempting download...")
 
     local path = name:gsub("%.", "/") .. ".lua"
-    local url = AutoPrograms.BASE_URL .. path
+    local url = Installer.BASE_URL .. path
 
-    AutoPrograms.fetch(url);
+    Installer.fetch(url);
 
     return oldRequire(name)
+end
+
+local function isRequired(args)
+    return #args == 2 and type(package.loaded[args[1]]) == "table" and not next(package.loaded[args[1]]);
+end
+
+if (not isRequired(...)) then
+    Installer.fetch(...);
 end

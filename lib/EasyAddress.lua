@@ -7,8 +7,10 @@ local Std = require("lib.Std");
 
 local EasyAddress = {};
 
-local AutoPrograms = package.loaded["AutoPrograms"];
-AutoPrograms.fetchDirectory("/data/language/easy_address")
+local Installer = package.loaded["Installer"];
+if (Installer ~= nil and not fs.exists("/data/language/easy_address")) then
+    Installer.fetchDirectory("/data/language/easy_address");
+end
 
 --- Everytime you connect a peripheral do you want to confirm the address? (y/n):
 local SHOULD_CONFIRM_KEY = "easy_address:message.should_confirm";
@@ -42,7 +44,6 @@ local REMOVE_KEY = "easy_address:message.removed";
 local PRESS_DONE_KEY = "easy_address:message.press_done";
 --- Are you sure you want to exit? (y/n):
 local CONFIRM_EXIT_KEY = "easy_address:message.confirm_exit";
-
 
 local PATH = Std.getAndMakeDirectory("easy_address");
 

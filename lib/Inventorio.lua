@@ -6,17 +6,31 @@ local _def = Helper.def;
 ---@class Inventorio
 local Inventorio = {};
 Inventorio.__index = Inventorio;
-Inventorio.PREDICATES = {};
+Inventorio.Predicates = {};
 
-Inventorio.PREDICATES.ITEM_NAME_PREDICATE = function(itemName, amount, toSlot)
-    local remaining = amount;
-    return function(item)
-        if (item.name == itemName) then
-            remaining = remaining - item.count;
-            return remaining > 0, math.min(remaining, item.count), toSlot;
-        end
-        return false;
+---@alias ItemPredicate fun(slot: number, item: table): boolean
+---@alias PushPredicate fun(slot: number, item: table): boolean, number|nil, number|nil
+
+--- Predicate that allows only matching item names...
+---@param itemName string
+---@return ItemPredicate
+Inventorio.Predicates.newItemNamePredicate = function(itemName)
+    return function(slot, item)
+        return item.name == itemName;
     end
+end
+
+--- Predicate that allows only matching item names...
+---@param itemTag string
+---@return ItemPredicate
+Inventorio.Predicates.newItemTagPredicate = function(itemTag)
+    return function(slot, item)
+        return item.tags[itemTag] ~= nil;
+    end
+end
+
+Inventorio.Predicates.ALWAYS_TRUE = function(slot, item)
+    return true;
 end
 
 local function instanceof(obj, class)
@@ -76,35 +90,55 @@ end
 --- @param amount integer|nil def: `64` — The amount of items to transfer
 --- @param toSlot integer|nil def: `1` — The slot to transfer to
 function Inventorio:pushName(toAddr, itemName, amount, toSlot)
-    local remaining = amount;
-    self:pushPredicate(toAddr, function(slot, item)
-        if (item.name == itemName) then
+    return self:pushAmountPredicate(toAddr, toSlot, amount, false, Inventorio.Predicates.newItemNamePredicate(itemName))
+end
+
+--- <b>Push an item to another inventory.</b>
+--- @param toAddr string|table|nil def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
+--- @param itemTag string The name of the item to push.
+--- @param amount integer|nil def: `64` — The amount of items to transfer
+--- @param toSlot integer|nil def: `1` — The slot to transfer to
+function Inventorio:pushTag(toAddr, itemTag, amount, toSlot)
+    return self:pushAmountPredicate(toAddr, toSlot, amount, true, Inventorio.Predicates.newItemTagPredicate(itemTag));
+end
+
+--- Push a specific amount of items into an inventory by predicate
+--- @param toAddr string|table|nil The address to push items to.
+---@param toSlot number|nil
+---@param amount number|nil
+---@param detail boolean|nil
+---@param itemPredicate ItemPredicate
+---@return number pushed number of items succesfully pushed
+function Inventorio:pushAmountPredicate(toAddr, toSlot, amount, detail, itemPredicate)
+    local remaining = amount or 1;
+
+    return self:pushPredicate(toAddr, function(slot, item)
+        if (itemPredicate(slot, item)) then
             if (remaining <= 0) then return false; end
             local pushAmount = math.min(remaining, item.count);
             remaining = remaining - pushAmount;
             return true, pushAmount, toSlot;
         end
         return false;
-    end);
+    end, detail);
 end
 
 --- Pushes items from the inventory to a specified address based on a predicate.
 ---
 --- @param toAddr string|table|nil The address to push items to.
---- @param predicate function A function that takes an item and returns a boolean indicating whether the item is valid, the amount to push, and the slot to push to.
----
----   local function predicate(item)
----     -- example predicate function
----     return true, 1, 1
----   end
----   Inventorio:pushCB("address", predicate)
-function Inventorio:pushPredicate(toAddr, predicate)
-    for slot, item in pairs(self:getItems()) do
+--- @param predicate PushPredicate A function that takes an item and returns a boolean indicating whether the item is valid, the amount to push, and the slot to push to.
+--- @return number pushed number of items succesfully pushed
+function Inventorio:pushPredicate(toAddr, predicate, detail)
+    if (detail == nil) then detail = false; end
+
+    local pushed = 0;
+    for slot, item in pairs(self:getItems(detail)) do
         local valid, amount, toSlot = predicate(slot, item);
         if (valid) then
-            self:push(toAddr, slot, toSlot, amount);
+            pushed = pushed + self:push(toAddr, slot, toSlot, amount);
         end
     end
+    return pushed;
 end
 
 --- <b>Pull an item to another inventory.</b>
@@ -120,29 +154,54 @@ function Inventorio:pull(fromAddr, fromSlot, toSlot, amount)
     return self.peripheral.pullItems(fromAddr, fromSlot, amount, toSlot);
 end
 
-function Inventorio:contains(itemName)
-    return self:containsCB(function(item) return item.name == itemName; end);
+--- check if it contains a specific item by name
+---@param itemName string
+---@return boolean
+function Inventorio:containsName(itemName)
+    return self:containsCB(Inventorio.Predicates.newItemNamePredicate(itemName));
 end
 
-function Inventorio:containsCB( predicate)
-    for _, item in pairs(self:getItems()) do
-        if (predicate(item)) then return true; end
+--- check if it contains a specific item
+---@param predicate fun(slot: number, item: table): boolean
+---@return boolean
+function Inventorio:containsCB(predicate)
+    for slot, item in pairs(self:getItems()) do
+        if (predicate(slot, item)) then return true; end
     end
     return false;
 end
 
-function Inventorio:count(itemName)
-    return self:countCB(function(item) return item.name == itemName; end);
+--- count an item by name
+---@param itemName string name
+---@return integer
+function Inventorio:countName(itemName)
+    return self:countPredicate(Inventorio.Predicates.newItemNamePredicate(itemName));
 end
 
-function Inventorio:countCB(predicate)
+--- count an item by tag
+---@param itemTag string tag
+---@return integer
+function Inventorio:countTag(itemTag)
+    return self:countPredicate(Inventorio.Predicates.newItemTagPredicate(itemTag), true);
+end
+
+--- Count items by predicate
+---@param predicate fun(slot: number, item: table): boolean
+---@param detail boolean|nil whether to include details
+---@return integer
+function Inventorio:countPredicate(predicate, detail)
+    if (detail == nil) then detail = false; end
+
     local count = 0;
-    for _, item in pairs(self:getItems()) do
-        if (predicate(item)) then count = count + item.count; end
+    for slot, item in pairs(self:getItems(detail)) do
+        if (predicate(slot, item)) then count = count + item.count; end
     end
     return count;
 end
 
+--- find the first empty slot
+---@param reverse boolean if true `end->start`, if false `start->end`, default: `false`
+---@return integer slot -1 if full
 function Inventorio:findEmpty(reverse)
     if (reverse == nil) then reverse = true; end
 
@@ -163,13 +222,36 @@ function Inventorio:findEmpty(reverse)
     for i in Helper.iterate(start, finish) do
         if (self:isEmptyAt(i)) then return i; end
     end
+
+    return -1;
 end
 
+--- size of inventory
+---@return number
 function Inventorio:size()
     return self.peripheral.size();
 end
 
-function Inventorio:getItems()
+--- get all items
+---@param detail boolean|nil include extra item data
+---@return table[] items
+function Inventorio:getItems(detail)
+    if (detail == nil) then detail = false; end
+
+    if (detail) then
+        local items = {};
+
+        local fns = {};
+
+        for i = 1, self.peripheral.size() do
+            fns[#fns+1] = function() items[i] = self.peripheral.getItemDetail(i) end
+        end
+
+        parallel.waitForAll(table.unpack(fns));
+
+        return items;
+    end
+    
     return self.peripheral.list();
 end
 
@@ -185,6 +267,9 @@ function Inventorio:getTotals()
     return totals;
 end
 
+--- get item at specific slot
+---@param slot number
+---@return table
 function Inventorio:getAt(slot)
     return self:getItems()[slot];
 end
