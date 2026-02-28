@@ -73,8 +73,9 @@ AE69.registerRecipes(
             ["minecraft:porkchop"]=1
         })
         :setProcessor("smoker")
-        
 )
+
+-- TODO: recipe learner, recipe serializing, processor serializing
 
 print("Initializing AE69...\n");
 AE69.init("minecraft:chest_0");

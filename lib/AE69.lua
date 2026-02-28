@@ -402,6 +402,54 @@ function AE69.craft(recipeName, amount)
     else return result; end
 end
 
+--- learns a recipe from the turtles inventory
+---@param shaped boolean
+---@param processorId string
+---@return Recipe
+function AE69.learn(shaped, processorId)
+    local fns = {};
+
+    local shape = nil;
+    local materials = nil;
+    local output = nil;
+
+    if (shaped) then
+        shape = {};
+        for i = 1, 9 do
+            fns[#fns+1] = function()
+                shape[i] = turtle.getItemDetail(toTurtleSlot(i), true);
+            end
+        end
+    else
+        materials = {};
+        for i = 1, 15 do
+            fns[#fns+1] = function()
+                local item = turtle.getItemDetail(i, true);
+                if (item ~= nil) then
+                    materials[item.name] = (materials[item.name] or 0) + item.count;
+                end
+            end
+        end
+    end
+    fns[#fns+1] = function() output = turtle.getItemDetail(16, true) end
+    
+    parallel.waitForAll(table.unpack(fns));
+
+    if (output == nil) then error("no output") end
+
+    if (shaped) then
+        return Recipe.new(output.name)
+            :setShape(shape)
+            :setOutputAmount(output.count)
+            :setProcessor(processorId);
+    else
+        return Recipe.new(output.name)
+            :setMaterials(materials)
+            :setOutputAmount(output.count)
+            :setProcessor(processorId);
+    end
+end
+
 function AE69.craftAll(recipeList, amountList)
     local queueMap = {};
 
