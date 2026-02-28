@@ -1,4 +1,3 @@
-local Language = require("lib.Language");
 local Identifier = require("lib.Identifier");
 local Helper = require("lib.Helper")
 local Ask = require("lib.Ask");
@@ -6,44 +5,6 @@ local Graphics = require("lib.Graphics")
 local Std = require("lib.Std");
 
 local EasyAddress = {};
-
-local Installer = package.loaded["Installer"];
-if (Installer ~= nil and not fs.exists("/data/language/easy_address")) then
-    Installer.fetchDirectory("/data/language/easy_address");
-end
-
---- Everytime you connect a peripheral do you want to confirm the address? (y/n):
-local SHOULD_CONFIRM_KEY = "easy_address:message.should_confirm";
---- Select one of the following: 
-local SELECT_MULTIPLE_KEY = "easy_address:message.select_multiple";
---- Additional Information is Available:
-local DESC_KEY = "easy_address:message.desc_info";
---- '%s'
-local DESC_VALUE_KEY = "easy_address:message.desc_value";
-
---- Please enable the peripheral '%s'...;
-local WAIT_KEY = "easy_address:message.wait_one";
---- Are you sure you want to set the peripheral '%s' as '%s'? (y/n):
-local CONFIRM_ADDRESS_KEY = "easy_address:message.confirm_address";
-
---- Please enable a peripheral in the category of '%s'...
-local WAIT_LIST_KEY = "easy_address:message.wait_list";
---- Found multiple peripherals, do you want to add them all? (y/n):
-local CONFIRM_ADD_ALL_KEY = "easy_address:message.confirm_add_all";
---- Found multiple peripherals, do you want to remove them all? (y/n):
-local CONFIRM_REMOVE_ALL_KEY = "easy_address:message.confirm_remove_all";
---- Are you sure you want to add '%s' to '%s'? (y/n):
-local CONFIRM_ADD_ADDRESSES_KEY = "easy_address:message.confirm_add_addresses";
---- Are you sure you want to remove '%s' from '%s'? (y/n):
-local CONFIRM_REMOVE_ADDRESSES_KEY = "easy_address:message.confirm_remove_addresses";
---- Added '%s' to '%s'
-local ADD_KEY = "easy_address:message.added";
---- Removed '%s' from '%s'
-local REMOVE_KEY = "easy_address:message.removed";
---- Press Enter when done.
-local PRESS_DONE_KEY = "easy_address:message.press_done";
---- Are you sure you want to exit? (y/n):
-local CONFIRM_EXIT_KEY = "easy_address:message.confirm_exit";
 
 local PATH = Std.getAndMakeDirectory("easy_address");
 
@@ -98,10 +59,10 @@ function EasyAddress.wait(name, description)
     local function ui_waiting()
         term.clear();
         term.setCursorPos(1, 1)
-        Language.printKey(WAIT_KEY, name);
+        print(("Please enable the peripheral '%s'..."):format(name));
         if (description) then
-            Language.printKey(DESC_KEY);
-            Language.printKey(DESC_VALUE_KEY, description:format(name));
+            print("Additional Information is Available:");
+            print(description:format(name));
         end
     end
 
@@ -112,7 +73,7 @@ function EasyAddress.wait(name, description)
     local function ui_received(addressList)
         local addr = addressList[1];
         if (#addressList > 1) then
-            Language.write(SELECT_MULTIPLE_KEY);
+            write("Select one of the following: ");
             local x, y = term.getCursorPos();
             local ey;
             print();
@@ -125,7 +86,7 @@ function EasyAddress.wait(name, description)
             term.setCursorPos(1, ey);
             addr = addressList[index];
         end
-        Language.printKey(CONFIRM_ADDRESS_KEY, addr, name);
+        print(("Are you sure you want to set the peripheral '%s' as '%s'? (y/n)"):format(addr, name));
         local confirm = read():lower();
         if (confirm == "y") then return true, addr; end
         return false;
@@ -155,12 +116,12 @@ function EasyAddress.waitList(name, description, list)
 
     --- <b>Before we block the thread, we need to clear the terminal, and print some info.</b>
     local function onShowWaiting()
-        Language.printKey(WAIT_LIST_KEY, name);
+        print(("Please enable a peripheral in the category of '%s'..."):format(name));
         if (description ~= nil) then
-            Language.printKey(DESC_KEY);
-            Language.printKey(DESC_VALUE_KEY, description:format(name));
+            print("Additional Information is Available:");
+            print(description:format(name));
         end
-        Graphics.writePercent(Language.getKey(PRESS_DONE_KEY), 1, 1);
+        Graphics.writePercent("Press Enter when done.", 1, 1);
     end
 
     --- <b>When we receive the address list of peripherals enabled, we return an address from that list</b>
@@ -168,14 +129,14 @@ function EasyAddress.waitList(name, description, list)
     ---@return string[] address The address of the peripheral
     local function onShowFilter(isAdd, addressList)
         local key = nil;
-        if (isAdd) then key = CONFIRM_ADD_ALL_KEY;
-        else key = CONFIRM_REMOVE_ALL_KEY; end
+        if (isAdd) then key = "Found multiple peripherals, do you want to add them all? (y/n):";
+        else key = "Found multiple peripherals, do you want to remove them all? (y/n):"; end
 
         if (#addressList > 1) then
-            if (Ask.ask(Language.getKey(key), Ask.yesNo())) then
+            if (Ask.ask(key, Ask.yesNo())) then
                 return addressList;
             else
-                Language.writeKey(SELECT_MULTIPLE_KEY)
+                write("Select one of the following: ")
                 local x, y = term.getCursorPos();
                 local ey;
                 print();
@@ -201,7 +162,7 @@ function EasyAddress.waitList(name, description, list)
                 sleep(0.25);
                 local event, key = os.pullEvent("key_up");
                 if (key == keys.enter) then
-                    if (Ask.ask(Language.getKey(CONFIRM_EXIT_KEY), Ask.yesNo())) then
+                    if (Ask.ask("Are you sure you want to exit? (y/n):", Ask.yesNo())) then
                         break;
                     end
                 end
@@ -252,7 +213,7 @@ function EasyAddress.waitList(name, description, list)
                 for index, addr in ipairs(filteredAddrs) do
                     if (not Helper.contains(ret, addr)) then
                         speaker.playNote("harp", 1, 1);
-                        Language.printKey(ADD_KEY, addr, name);
+                        print(("Added '%s' to '%s'"):format(addr, name));
                         Helper.add(ret, addr);
                     end
                 end
@@ -260,7 +221,7 @@ function EasyAddress.waitList(name, description, list)
                 for index, addr in ipairs(filteredAddrs) do
                     if (Helper.contains(ret, addr)) then
                         speaker.playNote("bass", 1, 12);
-                        Language.printKey(REMOVE_KEY, addr, name);
+                        print(("Removed '%s' from '%s'"):format(addr, name));
                         Helper.remove(ret, addr);
                     end
                 end
@@ -268,7 +229,7 @@ function EasyAddress.waitList(name, description, list)
         end
     end
 
-    confirm = Ask.ask(Language.getKey(SHOULD_CONFIRM_KEY), Ask.yesNo());
+    confirm = Ask.ask("Everytime you connect a peripheral do you want to confirm the address? (y/n):", Ask.yesNo());
 
     parallel.waitForAny(keyThread, peripheralThread);
     return ret;
