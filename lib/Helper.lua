@@ -290,7 +290,7 @@ function Helper.loadJSON(path)
     return textutils.unserialiseJSON(unserialised);
 end
 
---- <b>Saves a table to a JSON file.</b>
+--- <b>Saves a table to a file.</b>
 ---@param path string
 ---@param tab table
 function Helper.save(path, tab)
@@ -300,7 +300,7 @@ function Helper.save(path, tab)
     file.close();
 end
 
---- <b>Loads a table from a JSON file.</b>
+--- <b>Loads a table from a file.</b>
 ---@param path string
 ---@return table|nil
 function Helper.load(path)

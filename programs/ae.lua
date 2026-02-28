@@ -1,101 +1,53 @@
 local AE69 = require("lib.AE69");
+local Std = require("lib.Std");
+local Helper = require("lib.Helper");
+local Path = require("lib.Path");
+local EasyAddress = require("lib.EasyAddress");
+local CMDL = require("lib.CMDL");
+local Ask  = require("lib.Ask")
 local Recipe = AE69.Recipe;
 
-AE69.registerProcessor("furnace", "minecraft:barrel_15", "minecraft:barrel_11");
-AE69.registerProcessor("blast_furnace", "minecraft:barrel_17", "minecraft:barrel_16");
-AE69.registerProcessor("smoker", "minecraft:barrel_19", "minecraft:barrel_18");
+local dataDirectoryPath = Path.new(Std.getAndMakeDirectory("ae69"));
+local recipesFilePath = Path.join(dataDirectoryPath, "recipes.luaj");
+local processorsFilePath = Path.join(dataDirectoryPath, "processors.luaj");
+local stockpilesFilePath = Path.join(dataDirectoryPath, "stockpiles.luaj");
+local buffersFilePath = Path.join(dataDirectoryPath, "buffers.luaj");
 
-AE69.registerRecipes(
-    Recipe.new("computercraft:turtle_normal")
-        :setShape({
-            [1]="minecraft:iron_ingot", [2]="minecraft:iron_ingot",                 [3]="minecraft:iron_ingot",
-            [4]="minecraft:iron_ingot", [5]="computercraft:computer_normal",        [6]="minecraft:iron_ingot",
-            [7]="minecraft:iron_ingot", [8]="minecraft:chest",                      [9]="minecraft:iron_ingot"
-        }),
+local function setup()
+    local recipes = Helper.load(recipesFilePath);
+    local processors = Helper.load(processorsFilePath);
+    local stockpiles = Helper.load(stockpilesFilePath);
+    local buffers = Helper.load(buffersFilePath);
 
-    Recipe.new("computercraft:computer_normal")
-        :setShape({
-            [1]="minecraft:stone",      [2]="minecraft:stone",                      [3]="minecraft:stone",
-            [4]="minecraft:stone",      [5]="minecraft:redstone",                   [6]="minecraft:stone",
-            [7]="minecraft:stone",      [8]="minecraft:glass_pane",                 [9]="minecraft:stone",
-        }),
+    if (recipes ~= nil) then
+        print("Loading recipe definitions...");
+        for _, recipe in pairs(recipes) do
+            AE69.registerRecipes(recipe);
+        end
+    end
 
-    Recipe.new("minecraft:chest")
-        :setShape({
-            [1]="minecraft:oak_planks", [2]="minecraft:oak_planks",                 [3]="minecraft:oak_planks",
-            [4]="minecraft:oak_planks",                                             [6]="minecraft:oak_planks",
-            [7]="minecraft:oak_planks", [8]="minecraft:oak_planks",                 [9]="minecraft:oak_planks",
-        }),
+    if (processors ~= nil) then
+        print("Loading processor definitions...");
+        for _, processor in ipairs(processors) do
+            AE69.registerProcessor(processor.id, processor.input, processor.output);
+        end
+    end
 
-    Recipe.new("minecraft:glass_pane")
-        :setShape({
-            [1]="minecraft:glass",      [2]="minecraft:glass",                      [3]="minecraft:glass",
-            [4]="minecraft:glass",      [5]="minecraft:glass",                      [6]="minecraft:glass",
-        })
-        :setOutputAmount(16),
+    if (stockpiles ~= nil) then
+        print("Loading stockpile definitions...");
+        for recipeName, amount in pairs(stockpiles) do
+            AE69.registerStock(recipeName, amount);
+        end
+    end
 
-    Recipe.new("minecraft:oak_planks")
-        :setShape({"minecraft:oak_log"})
-        :setOutputAmount(4),
+    print("Initializing AE69...\n");
+    if (buffers == nil) then
+        buffers = {};
+        buffers[1] = EasyAddress.wait("buffer", "The AE69 buffer with all the items");
+        Helper.save(buffersFilePath, buffers);
+    end
 
-    Recipe.new("minecraft:iron_ingot")
-        :setMaterials({
-            ["minecraft:raw_iron"]=1
-        })
-        :setProcessor("blast_furnace"),
-
-    Recipe.new("minecraft:glass")
-        :setMaterials({
-            ["minecraft:sand"]=1
-        })
-        :setProcessor("furnace"),
-
-    Recipe.new("minecraft:stone")
-        :setMaterials({
-            ["minecraft:cobblestone"]=1
-        })
-        :setProcessor("furnace"),
-
-    Recipe.new("minecraft:cooked_mutton")
-        :setMaterials({
-            ["minecraft:mutton"]=1
-        })
-        :setProcessor("smoker"),
-
-    Recipe.new("minecraft:cooked_beef")
-        :setMaterials({
-            ["minecraft:beef"]=1
-        })
-        :setProcessor("smoker"),
-    
-    Recipe.new("minecraft:cooked_porkchop")
-        :setMaterials({
-            ["minecraft:porkchop"]=1
-        })
-        :setProcessor("smoker")
-)
-
--- TODO: recipe learner, recipe serializing, processor serializing
-
-print("Initializing AE69...\n");
-AE69.init("minecraft:chest_0");
-
-AE69.stock("minecraft:cooked_mutton", 8);
-AE69.stock("minecraft:cooked_beef", 8);
-AE69.stock("minecraft:cooked_porkchop", 8);
-
-AE69.stock("minecraft:chest", 64);
-AE69.stock("minecraft:glass_pane", 64);
-AE69.stock("minecraft:glass", 64);
-AE69.stock("minecraft:stone", 64);
-AE69.stock("minecraft:iron_ingot", 64);
-
-AE69.stock("computercraft:computer_normal", 4);
-AE69.stock("computercraft:turtle_normal", 4);
-
-print("Stockpile List: ")
-for name, count in pairs(AE69.getStockpiles()) do
-    print(name .. ": " .. count);
+    AE69.init(buffers[1]);
 end
 
 local function onCraftRoot(name, count)
@@ -104,8 +56,160 @@ end
 
 AE69.OnCraftRoot:listen(onCraftRoot);
 
-print("Entering stockpile mode...");
-while true do
-    AE69.poll()
-    sleep(1);
+local function getAnyItem()
+    for i = 1, 16 do
+        local item = turtle.getItemDetail(i);
+        if (item ~= nil) then return item end
+    end
 end
+
+local function processorCmd(args)
+    if (args[1] == "add") then
+        local id = args[2] or Ask.ask("Choose a unique name for this processor: ");
+        ---@cast id string
+
+        local input = EasyAddress.wait(id .. " input", "The processors input inventory")
+        local output = EasyAddress.wait(id .. " output", "The processors output inventory")
+        AE69.registerProcessor(id, input, output);
+        Helper.save(processorsFilePath, AE69.getProcessors());
+    elseif (args[1] == "remove") then
+        local id = args[2] or Ask.ask("Choose the name of the processor to remove: ");
+        ---@cast id string
+
+        AE69.removeProcessor(id);
+        Helper.save(processorsFilePath, AE69.getProcessors());
+    end
+end
+
+local function recipeCmd(args)
+    if (args[1] == "add") then
+        local ready = Ask.ask("Input stuff in the turtle and please type (y/n) when done:", Ask.yesNo())
+        if (not ready) then return end
+
+        local isShaped = Ask.ask("Is this ready a shaped recipe or shapeless (y/n): ", Ask.yesNo());
+        ---@cast isShaped boolean
+        local processorId = nil;
+
+        if (not isShaped) then
+            processorId = Ask.ask("Enter the name of the processor this should go to: ");
+            ---@cast processorId string
+        end
+
+        local item = turtle.getItemDetail(16);
+        if (item == nil) then
+            print("No output item in slot 16 (bottom right)! Put the the result of the recipe in this slot, with the exact amount the recipe outputs!");
+            return
+        end
+
+        local recipe = AE69.learn(isShaped, processorId);
+
+        print("name:", recipe.data.name);
+        print("output amount:", recipe.data.outputAmount);
+        print("processor:",  recipe.data.processorId);
+
+        local confirm = Ask.ask("Do you want to save this recipe? (y/n): ", Ask.yesNo());
+        if (not confirm) then return end
+
+        AE69.registerRecipes(recipe);
+        Helper.save(recipesFilePath, AE69.getRecipes());
+    elseif (args[1] == "remove") then
+        if (args[2] == nil) then
+            local item = nil;
+            for i = 1, 16 do
+                item = turtle.getItemDetail(i);
+                if (item ~= nil) then break end
+            end
+
+            if (item == nil) then
+                print("Couldn't find any item in the turtles inventory...");
+                return;
+            end
+
+            AE69.removeRecipe(item.name);
+            Helper.save(recipesFilePath, AE69.getRecipes());
+        end
+
+    else
+        print("expected 'add' or 'remove'");
+    end
+end
+
+local function stockpileCmd(args)
+    if (args[1] == "set") then
+        local name = args[2];
+        local amount = args[3];
+
+        if (name ~= nil) then
+            if (amount ~= nil) then
+                amount = tonumber(amount);
+            end
+        else
+            local ready = Ask.ask("Input the item you want to stockpile in the turtle (y/n)", Ask.yesNo())
+            if (not ready) then return end
+    
+            local item = getAnyItem();
+    
+            if (item == nil) then
+                print("Couldn't find any item in the turtles inventory...");
+                return;
+            end
+
+            name = item.name;
+        end
+        amount = amount or Ask.ask("Enter the amount of " .. name .. " you want to stockpile: ", Ask.num(1));
+
+        local confirm = Ask.ask("Are you sure you want to stockpile " .. amount .. " " .. name .. " (y/n): ", Ask.yesNo())
+        if (not confirm) then return end
+
+        AE69.registerStock(name, amount);
+        Helper.save(stockpilesFilePath, AE69.getStockpiles());
+    elseif (args[1] == "remove") then
+        if (args[2] ~= nil) then
+            name = args[2];
+        else
+            local ready = Ask.ask("Input the item you want to stockpile in the turtle (y/n)", Ask.yesNo())
+            if (not ready) then return end
+    
+            local item = getAnyItem();
+    
+            if (item == nil) then
+                print("Couldn't find any item in the turtles inventory...");
+                return;
+            end
+
+            name = item.name;
+        end
+
+        local confirm = Ask.ask("Are you sure you want to remove the stockpile for " .. name .. " (y/n): ", Ask.yesNo())
+        if (not confirm) then return end
+
+        AE69.removeStock(name);
+        Helper.save(stockpilesFilePath, AE69.getStockpiles());
+    else
+        print("expected 'add' or 'remove'");
+    end
+end
+
+setup();
+local CMDI = CMDL.new();
+
+CMDI:command("processor", "modify processors", processorCmd);
+CMDI:command("recipe", "modify recipes", recipeCmd);
+CMDI:command("stockpile", "modify stockpile data", stockpileCmd);
+
+local function commandThread()
+    while true do
+        CMDI:run(read());
+    end
+end
+
+
+local function pollThread()
+    while true do
+        AE69.poll()
+        sleep(1);
+    end
+end
+
+
+parallel.waitForAll(commandThread, pollThread);

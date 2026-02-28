@@ -37,9 +37,9 @@ function Identifier.Builder:build(path)
     return Identifier.new(self.namespace, path);
 end
 
-    --- <b>Returns a string identifier</b>
-    ---@param path string
-    ---@return string
+--- <b>Returns a string identifier</b>
+---@param path string
+---@return string
 function Identifier.Builder:buildString(path)
     return self.namespace .. ":" .. path;
 end

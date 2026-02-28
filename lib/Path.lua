@@ -23,10 +23,12 @@ end
 
 --- <b>Join two or more paths.</b> <br>
 --- Examples: `"hello", "there", "world.txt"` → `"hello/there/world.txt"`.
----@param topPath string
+---@param topPath string|Path
 ---@param ... string
 ---@return string
 function Path.join(topPath, ...)
+    if (instanceof(topPath, Path)) then topPath = topPath.getAbsolutePath(); end
+
     local subPaths = {...};
     local ret = clean(topPath);
     for _, subPath in ipairs(subPaths) do
@@ -87,15 +89,16 @@ function Path.getAbsolutePath(path)
 end
 
 function Path.new(path)
+    ---@class Path
     local self = {};
 
-    local absolutePath;
-    local fileName;
-    local fileExtension;
-    local filePath;
+    local absolutePath = nil;
+    local fileName = nil;
+    local fileExtension = nil;
+    local filePath = nil;
 
-    local exists;
-    local file;
+    local exists = nil;
+    local file = nil;
 
     local function setup()
         absolutePath = Path.getAbsolutePath(path);

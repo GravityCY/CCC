@@ -4,8 +4,8 @@ function Ask.onOff()
     return Ask.bool("on", "off");
 end
 
-function Ask.yesNo()
-    return Ask.bool("yes", "no");
+function Ask.yesNo(full)
+    return Ask.bool((full and "yes") or "y", (full and "no") or "n");
 end
 
 function Ask.trueFalse()
@@ -30,6 +30,21 @@ function Ask.num(min, max)
     };
 end
 
+---@class Options
+---@field num NumOptions
+---@field bool BoolOptions
+
+---@class NumOptions
+---@field min number
+---@field max number
+
+---@class BoolOptions
+---@field truePattern string
+---@field falsePattern string
+
+--- @param question string
+--- @param options Options|nil
+--- @return string|number|boolean
 function Ask.ask(question, options)
     options = options or {};
 

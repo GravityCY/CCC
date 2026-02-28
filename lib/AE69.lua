@@ -96,6 +96,7 @@ AE69.OnCraftEnd = Event.new(false, false);
 local recipes = {};
 
 ---@class Processor
+---@field id string
 ---@field input Inventorio
 ---@field output Inventorio
 
@@ -223,64 +224,6 @@ local function buildTaskQueue(recipeName, amount, parent, queueMap, totals)
     end
 end
 
----@param ... Recipe
-function AE69.registerRecipes(...)
-    for _, recipe in ipairs({...}) do
-        recipes[recipe.data.name] = recipe;
-    end
-end
-
-function AE69.registerProcessor(id, inputAddr, outputAddr)
-    local temp = {
-        input = Inventorio.new(inputAddr),
-        output = Inventorio.new(outputAddr)
-    }
-    if (temp.input == nil or temp.output == nil) then error("nil input or nil output") end
-
-    processors[id] = temp;
-end
-
---- Initializes AE3
----@param bufferAddr string
-function AE69.init(bufferAddr)
-    local temp = Inventorio.new(bufferAddr);
-    if (temp == nil) then error("Buffer is nil") end
-    buffer = temp;
-
-    workbench = peripheral.find("workbench")
-    modem = peripheral.find("modem");
-    localName = modem.getNameLocal();
-end
-
----@param recipeName string
----@param amount number
----@return Result success, table<string, Queue<Task>>|nil queueMap
-function AE69.buildTaskQueue(recipeName, amount)
-    local queueMap = {};
-    LOGGER.debug("Building task queue");
-    buildTaskQueue(recipeName, amount, nil, queueMap, buffer:getTotals());
-    local success, err = pcall(buildTaskQueue, recipeName, amount, queueMap);
-    if (not success) then return newResult(success, err) end
-    return newResult(true), queueMap;
-end
-
-function AE69.stock(recipeName, amount)
-    stockpile[recipeName] = amount;
-end
-
-function AE69.canCraftSimple(recipeName, amount)
-    if (buffer == nil) then error("Buffer is nil") end
-    local recipe = recipes[recipeName];
-    if (recipe == nil) then return false; end
-
-    local craftingIterations = math.ceil(amount / recipe.data.outputAmount);
-    for name, count in pairs(recipe.data.materials) do
-        if (buffer:countName(name) < count * craftingIterations) then return false; end
-    end
-
-    return true;
-end
-
 ---@param recipe Recipe
 ---@param recipeAmount number
 local function craftShaped(recipe, recipeAmount)
@@ -362,6 +305,89 @@ function AE69.craftSimple(recipeName, recipeAmount)
 
     AE69.OnCraftEnd:invoke(recipeName, recipeAmount, recipe.data.shaped);
     LOGGER.debug("(Simple) Done crafting %d %s", recipeAmount, recipeName);
+    return true;
+end
+
+function AE69.getStockpiles()
+    return stockpile;
+end
+
+function AE69.registerStock(recipeName, amount)
+    stockpile[recipeName] = amount;
+end
+
+function AE69.removeStock(name)
+    stockpile[name] = nil;
+end
+
+function AE69.getRecipes()
+    return recipes;
+end
+
+---@param ... Recipe
+function AE69.registerRecipes(...)
+    for _, recipe in ipairs({...}) do
+        recipes[recipe.data.name] = recipe;
+    end
+end
+
+function AE69.removeRecipe(recipeName)
+    recipes[recipeName] = nil;
+end
+
+function AE69.getProcessors()
+    return processors;
+end
+
+function AE69.registerProcessor(id, inputAddr, outputAddr)
+    local temp = {
+        id = id,
+        input = Inventorio.new(inputAddr),
+        output = Inventorio.new(outputAddr)
+    }
+    if (temp.input == nil or temp.output == nil) then error("nil input or nil output") end
+
+    processors[id] = temp;
+end
+
+function AE69.removeProcessor(id)
+    processors[id] = nil;
+end
+
+--- Initializes AE3
+---@param bufferAddr string
+function AE69.init(bufferAddr)
+    local temp = Inventorio.new(bufferAddr);
+    if (temp == nil) then error("Buffer is nil") end
+    buffer = temp;
+
+    workbench = peripheral.find("workbench")
+    modem = peripheral.find("modem");
+    localName = modem.getNameLocal();
+end
+
+---@param recipeName string
+---@param amount number
+---@return Result success, table<string, Queue<Task>>|nil queueMap
+function AE69.buildTaskQueue(recipeName, amount)
+    local queueMap = {};
+    LOGGER.debug("Building task queue");
+    buildTaskQueue(recipeName, amount, nil, queueMap, buffer:getTotals());
+    local success, err = pcall(buildTaskQueue, recipeName, amount, queueMap);
+    if (not success) then return newResult(success, err) end
+    return newResult(true), queueMap;
+end
+
+function AE69.canCraftSimple(recipeName, amount)
+    if (buffer == nil) then error("Buffer is nil") end
+    local recipe = recipes[recipeName];
+    if (recipe == nil) then return false; end
+
+    local craftingIterations = math.ceil(amount / recipe.data.outputAmount);
+    for name, count in pairs(recipe.data.materials) do
+        if (buffer:countName(name) < count * craftingIterations) then return false; end
+    end
+
     return true;
 end
 
@@ -485,14 +511,6 @@ function AE69.poll()
     end
 
     AE69.craftAll(recipeList, amountList);
-end
-
-function AE69.getStockpiles()
-    return stockpile;
-end
-
-function AE69.getRecipes()
-    return recipes;
 end
 
 function AE69.setRecipes(recipeMap)
