@@ -1,5 +1,8 @@
 local Peripheral = require("lib.Peripheral");
 local Helper = require("lib.Helper")
+-- local Loggy  = require("lib.Loggy")
+
+-- local LOGGER = Loggy.get("Inventorio").setDebug(true);
 
 local _def = Helper.def;
 
@@ -79,7 +82,6 @@ end
 function Inventorio:push(toAddr, fromSlot, toSlot, amount)
     toAddr = _def(toAddr, self.peripheral.address.full);
     toAddr = asAddress(toAddr);
-    fromSlot = _def(fromSlot, 1);
 
     return self.peripheral.pushItems(toAddr, fromSlot, amount, toSlot);
 end
@@ -102,6 +104,36 @@ function Inventorio:pushTag(toAddr, itemTag, amount, toSlot)
     return self:pushAmountPredicate(toAddr, toSlot, amount, true, Inventorio.Predicates.newItemTagPredicate(itemTag));
 end
 
+-- function Inventorio:pushNameMulti(toAddr, itemNames, amounts, toSlots)
+--     local itemMap = {};
+--     for i = 1, #itemNames do
+--         itemMap[itemNames[i]] = {amount=amounts[i], toSlot=toSlots[i]};
+--     end
+
+--     if (detail == nil) then detail = false; end
+
+--     for slot, item in pairs(self:getItems(detail)) do
+--         local mItem = itemMap[item.name];
+--         if (mItem ~= nil) then
+--             local pushAmount = math.min(mItem.amount, item.count);
+--             mItem.amount = mItem.amount - self:push(toAddr, slot, mItem.toSlot, pushAmount);
+--             if (mItem.amount <= 0) then return false; end
+--         end
+--     end
+--     return pushed;
+
+--     return self:pushPredicate(toAddr, function(slot, item)
+--         local mItem = itemMap[item.name];
+--         if (mItem ~= nil) then
+--             if (mItem.amount <= 0) then return false; end
+--             local pushAmount = math.min(mItem.amount, item.count);
+--             mItem.amount = mItem.amount - pushAmount;
+--             return true, pushAmount, mItem.toSlot;
+--         end
+--         return false;
+--     end, false);
+-- end
+
 --- Push a specific amount of items into an inventory by predicate
 --- @param toAddr string|table|nil The address to push items to.
 ---@param toSlot number|nil
@@ -111,12 +143,15 @@ end
 ---@return number pushed number of items succesfully pushed
 function Inventorio:pushAmountPredicate(toAddr, toSlot, amount, detail, itemPredicate)
     local remaining = amount or 1;
+    -- LOGGER.debug("Pushing %d items into %s", remaining, toAddr);
 
     return self:pushPredicate(toAddr, function(slot, item)
         if (itemPredicate(slot, item)) then
+            -- LOGGER.debug("checking slot %d for %s", slot, item.name);
             if (remaining <= 0) then return false; end
             local pushAmount = math.min(remaining, item.count);
             remaining = remaining - pushAmount;
+            -- LOGGER.debug("pushing %d %s into %s at slot %d", pushAmount, item.name, toAddr, toSlot);
             return true, pushAmount, toSlot;
         end
         return false;
@@ -149,7 +184,6 @@ end
 ---@return integer transferred Amount of items transferred
 function Inventorio:pull(fromAddr, fromSlot, toSlot, amount)
     fromAddr = asAddress(_def(fromAddr, self.peripheral.address.full));
-    fromSlot = _def(fromSlot, 1);
 
     return self.peripheral.pullItems(fromAddr, fromSlot, amount, toSlot);
 end

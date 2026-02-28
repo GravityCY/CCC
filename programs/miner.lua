@@ -1,5 +1,5 @@
-local Tubby = require("Tubby");
-local Sides = require("Sides");
+local Tubby = require("lib.Tubby");
+local Sides = require("lib.Sides");
 
 local args = {...};
 

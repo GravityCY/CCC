@@ -1,6 +1,6 @@
-local EASY = require("EasyAddress");
-local Peripheral = require("Peripheral")
-local Inventorio = require("Inventorio");
+local EASY = require("lib.EasyAddress");
+local Peripheral = require("lib.Peripheral")
+local Inventorio = require("lib.Inventorio");
 
 local translations = EASY.load("smelter");
 local first = translations.fuel == nil;

@@ -48,7 +48,7 @@ end
 ---@param obj any
 ---@return boolean
 function Peripheral.isAddress(obj)
-    return type(obj) == "string" and peripheral.wrap(obj) ~= nil;
+    return type(obj) == "string"; --and peripheral.wrap(obj) ~= nil;
 end
 
 --- <b>Converts an object to a peripheral.</b>

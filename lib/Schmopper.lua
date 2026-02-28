@@ -240,4 +240,9 @@ function Schmopper.inventory(name)
     inventories[name] = Inventorio.new(ATT.get(name, true));
 end
 
+function Schmopper.put(addr)
+    inventories[addr] = Inventorio.new(addr);
+end
+
+
 return Schmopper;

@@ -311,7 +311,6 @@ function Helper.load(path)
     return textutils.unserialise(unserialised);
 end
 
-
 --- <b>A way to return a default value, if the given value is nil.</b>
 ---@param value any
 ---@param defValue any
