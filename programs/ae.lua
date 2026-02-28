@@ -1,4 +1,4 @@
-local AE69 = require("lib.AE69");
+local AE69 = require("lib.AE69.AE69");
 local Std = require("lib.Std");
 local Helper = require("lib.Helper");
 local Path = require("lib.Path");
@@ -28,8 +28,8 @@ local function setup()
 
     if (processors ~= nil) then
         print("Loading processor definitions...");
-        for _, processor in ipairs(processors) do
-            AE69.registerProcessor(processor.id, processor.input, processor.output);
+        for processorId, processor in pairs(processors) do
+            AE69.registerProcessor(processorId, processor.input, processor.output);
         end
     end
 
@@ -50,17 +50,24 @@ local function setup()
     AE69.init(buffers[1]);
 end
 
-local function onCraftRoot(name, count)
-    print("Queueing " .. count .. " " .. name .. " to be crafted...");
-end
-
-AE69.OnCraftRoot:listen(onCraftRoot);
-
 local function getAnyItem()
     for i = 1, 16 do
         local item = turtle.getItemDetail(i);
         if (item ~= nil) then return item end
     end
+end
+
+local function getSerializableProcessors(registry)
+    local processors = {};
+
+    for id, processor in pairs(registry) do
+        processors[id] = {
+            input = processor.input.peripheral.address.full,
+            output = processor.output.peripheral.address.full
+        };
+    end
+
+    return processors;
 end
 
 local function processorCmd(args)
@@ -71,13 +78,20 @@ local function processorCmd(args)
         local input = EasyAddress.wait(id .. " input", "The processors input inventory")
         local output = EasyAddress.wait(id .. " output", "The processors output inventory")
         AE69.registerProcessor(id, input, output);
-        Helper.save(processorsFilePath, AE69.getProcessors());
+        Helper.save(processorsFilePath, getSerializableProcessors(AE69.getProcessors()));
     elseif (args[1] == "remove") then
         local id = args[2] or Ask.ask("Choose the name of the processor to remove: ");
         ---@cast id string
 
         AE69.removeProcessor(id);
-        Helper.save(processorsFilePath, AE69.getProcessors());
+        Helper.save(processorsFilePath, getSerializableProcessors(AE69.getProcessors()));
+    else
+        local filter = args[1];
+        for name, processor in pairs(AE69.getProcessors()) do
+            if (filter == nil or name:find(filter)) then
+                print(name);
+            end
+        end
     end
 end
 
@@ -130,7 +144,12 @@ local function recipeCmd(args)
         end
 
     else
-        print("expected 'add' or 'remove'");
+        local filter = args[1];
+        for name, recipe in pairs(AE69.getRecipes()) do
+            if (filter == nil or name:find(filter)) then
+                print(name);
+            end
+        end
     end
 end
 
@@ -186,7 +205,9 @@ local function stockpileCmd(args)
         AE69.removeStock(name);
         Helper.save(stockpilesFilePath, AE69.getStockpiles());
     else
-        print("expected 'add' or 'remove'");
+        for name, amount in pairs(AE69.getStockpiles()) do
+            print(name .. ": " .. amount);
+        end
     end
 end
 
@@ -198,18 +219,31 @@ CMDI:command("recipe", "modify recipes", recipeCmd);
 CMDI:command("stockpile", "modify stockpile data", stockpileCmd);
 
 local function commandThread()
+    term.clear();
+    term.setCursorPos(1, 1);
+    CMDI:help();
     while true do
         CMDI:run(read());
     end
 end
 
-
 local function pollThread()
     while true do
-        AE69.poll()
+        AE69.pollTasks()
         sleep(1);
     end
 end
 
+local function taskThread()
+    local workers = AE69.getTaskWorkers();
+    parallel.waitForAll(table.unpack(workers));
+end
 
-parallel.waitForAll(commandThread, pollThread);
+local function onCraftRoot(name, count)
+    print("Queueing " .. count .. " " .. name .. " to be crafted...");
+end
+
+AE69.OnCraftRoot:listen(onCraftRoot);
+
+
+parallel.waitForAny(commandThread, pollThread, taskThread);
