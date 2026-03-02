@@ -1,10 +1,11 @@
 local Peripheral = require("lib.Peripheral");
+local Address = require("lib.Address");
 local Helper = require("lib.Helper")
 -- local Loggy  = require("lib.Loggy")
 
 -- local LOGGER = Loggy.get("Inventorio").setDebug(true);
 
-local _def = Helper.def;
+local _def = Helper._def;
 
 ---@class Inventorio
 local Inventorio = {};
@@ -32,7 +33,13 @@ Inventorio.Predicates.newItemTagPredicate = function(itemTag)
     end
 end
 
-Inventorio.Predicates.ALWAYS_TRUE = function(slot, item)
+Inventorio.Predicates.newIgnoreSlotPredicate = function(predicate)
+    return function(slot, item)
+        return predicate(item); 
+    end
+end
+
+Inventorio.Predicates.ALWAYS_TRUE = function()
     return true;
 end
 
@@ -61,6 +68,131 @@ local function asInventory(obj)
     return Peripheral.asPeripheral(obj);
 end
 
+---@class MergedInventory
+local MergedInventory = {};
+
+function MergedInventory.instanceof(obj)
+    return type(obj) == "table" and instanceof(obj.peripheral, MergedInventory);
+end
+
+---@param addrs string[]
+---@return Inventorio
+function Inventorio.merge(addrs)
+    ---@class MergedInventory
+    local self = {};
+
+    local invs = {};
+    local offsets = {};
+    local mergedSize = 0;
+
+    ---@param glSlot integer
+    ---@return integer invIndex, integer localSlot
+    local function toLocalSlot(glSlot)
+        assert(glSlot >= 1 and glSlot <= mergedSize, "Slot out of range");
+
+        local totalOffset = 0;
+        for i, inv in ipairs(invs) do
+            local offset = offsets[i];
+            if (glSlot <= totalOffset + offset) then return i, glSlot - totalOffset; end
+            totalOffset = totalOffset + offset;
+        end
+
+        return -1, -1;
+    end
+
+    local function toGlobalSlot(index, slot)
+        return offsets[index] + slot;
+    end
+
+    ---@param ... string
+    function self.add(...)
+        for _, addr in ipairs({...}) do
+            local inv = peripheral.wrap(addr);
+            local size = inv.size();
+            invs[#invs + 1] = inv;
+            offsets[#offsets+1] = size;
+            mergedSize = mergedSize + size;
+        end
+    end
+
+    ---@return number
+    function self.size()
+        return mergedSize;
+    end
+
+    ---@return table[]
+    function self.list()
+        local list = {};
+        local totalOffset = 0;
+        for i, inv in ipairs(invs) do
+            local offset = offsets[i];
+            for slot, item in pairs(inv.list()) do
+                list[totalOffset + slot] = item;
+            end
+            totalOffset = totalOffset + offset;
+        end
+        return list;
+    end
+
+    ---@param glSlot integer
+    ---@param detail boolean|nil
+    ---@return table
+    function self.getItemDetail(glSlot, detail)
+        local index, lcSlot = toLocalSlot(glSlot);
+        return invs[index].getItemDetail(lcSlot, detail);
+    end
+
+
+    function self.pushIntoMe(fromInventory, fromSlot, amount, toSlot)
+
+    end
+
+    function self.pushItems(toAddr, fromSlot, amount, toSlot)
+        local index, slot = toLocalSlot(fromSlot);
+        return invs[index].pushItems(toAddr, slot, amount, toSlot);
+    end
+
+    ---@param fromSlot number
+    ---@param amount number|nil
+    ---@param toSlot number|nil
+    ---@return number
+    function self.pullItems(fromObj, fromSlot, amount, toSlot)
+        local fromAddr = asAddress(fromObj);
+        amount = amount or 64;
+
+        local localIndex, localSlot = toLocalSlot(toSlot or 1);
+
+        local pushed = 0;
+        for si = localIndex, #invs do
+            local inv = invs[si];
+
+            ---@type number?
+            local tempSlot = localSlot;
+            if (si ~= localIndex or toSlot == nil) then tempSlot = nil; end
+
+            pushed = pushed + inv.pullItems(fromAddr, fromSlot, amount - pushed, tempSlot);
+            if (pushed >= amount) then break; end
+        end
+        return pushed;
+    end
+
+    function self.invs()
+        return invs;
+    end
+
+    for _, addr in ipairs(addrs) do
+        self.add(addr);
+    end
+
+    local inventorio = setmetatable({}, Inventorio);
+    inventorio.peripheral = setmetatable(self, MergedInventory);
+
+    inventorio.peripheral.type = "inventory";
+    inventorio.peripheral.address = Address.new("inventorio:merged_inventory_0");
+
+    return inventorio;
+end
+
 function Inventorio.new(obj)
     local self = {};
     local inv = asInventory(obj);
@@ -74,15 +206,17 @@ function Inventorio.new(obj)
 end
 
 --- <b>Push an item to another inventory.</b>
----@param toAddr string|table|nil def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
----@param fromSlot integer|nil def: `1` — The slot to transfer from
----@param toSlot integer|nil def: `1` — The slot to transfer to
----@param amount integer|nil def: `64` — The amount of items to transfer
+---@param toObj string|table def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
+---@param fromSlot integer The slot to transfer from
+---@param toSlot integer? The slot to transfer to
+---@param amount integer? The amount of items to transfer
 ---@return integer transferred Amount of items transferred
-function Inventorio:push(toAddr, fromSlot, toSlot, amount)
-    toAddr = _def(toAddr, self.peripheral.address.full);
-    toAddr = asAddress(toAddr);
-
+function Inventorio:push(toObj, fromSlot, toSlot, amount)
+    if (MergedInventory.instanceof(toObj)) then
+        ---@cast toObj MergedInventory
+        return toObj.peripheral.pullItems(self, fromSlot, amount, toSlot);
+    end
+    local toAddr = asAddress(toObj);
     return self.peripheral.pushItems(toAddr, fromSlot, amount, toSlot);
 end
 
@@ -135,7 +269,7 @@ end
 -- end
 
 --- Push a specific amount of items into an inventory by predicate
---- @param toAddr string|table|nil The address to push items to.
+--- @param toAddr string|table The address to push items to.
 ---@param toSlot number|nil
 ---@param amount number|nil
 ---@param detail boolean|nil
@@ -160,7 +294,7 @@ end
 
 --- Pushes items from the inventory to a specified address based on a predicate.
 ---
---- @param toAddr string|table|nil The address to push items to.
+--- @param toAddr string|table The address to push items to.
 --- @param predicate PushPredicate A function that takes an item and returns a boolean indicating whether the item is valid, the amount to push, and the slot to push to.
 --- @return number pushed number of items succesfully pushed
 function Inventorio:pushPredicate(toAddr, predicate, detail)

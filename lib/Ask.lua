@@ -43,7 +43,7 @@ end
 ---@field falsePattern string
 
 --- @param question string
---- @param options Options|nil
+--- @param options? Options
 --- @return string|number|boolean
 function Ask.ask(question, options)
     options = options or {};
@@ -72,6 +72,72 @@ function Ask.ask(question, options)
             end
         else
             return res;
+        end
+    end
+end
+
+---@class ChooseOptions
+---@field byIndex string[]?
+---@field byKey table<string, any>?
+---@field byValue table<any, string>?
+
+---@param message string
+---@param options ChooseOptions
+---@return number, string
+function Ask.choose(message, options)
+    local choices = {};
+
+    if (options.byIndex ~= nil) then
+        choices = options.byIndex
+    elseif (options.byKey ~= nil) then
+        for key in pairs(options.byKey) do
+            table.insert(choices, tostring(key));
+        end
+    elseif (options.byValue ~= nil) then
+        for _, value in pairs(options.byValue) do
+            table.insert(choices, tostring(value));
+        end
+    else
+        error("didnt pass anything")
+    end
+
+    ---@cast choices string[]
+
+    local selected = 1;
+
+    local sx, sy = term.getCursorPos();
+    local w, h = term.getSize();
+
+    print(message);
+
+    local overflow = sy + #choices - h;
+    if (overflow > 0) then term.scroll(overflow); end
+
+    while true do
+        for i, choice in ipairs(choices) do
+            term.setCursorPos(1, sy + i - 1 - overflow);
+            local s = "  ";
+            if (i == selected) then s = "> " end
+            write(s .. i .. ": " .. choice);
+        end
+
+        local _, key = os.pullEvent("key");
+        if (key == keys.up) then
+            term.clearLine();
+            local zeroBased = selected - 1;
+            zeroBased = (zeroBased - 1) % #choices;
+            selected = zeroBased + 1;
+            term.setCursorPos(1, sy + selected - 1);
+            term.clearLine();
+        elseif (key == keys.down) then
+            term.clearLine();
+            local zeroBased = selected - 1;
+            zeroBased = (zeroBased + 1) % #choices;
+            selected = zeroBased + 1;
+            term.setCursorPos(1, sy + selected - 1);
+            term.clearLine();
+        elseif (key == keys.enter) then
+            return selected, choices[selected];
         end
     end
 end

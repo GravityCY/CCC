@@ -1,3 +1,4 @@
+local Helper = require "lib.Helper"
 local Table = {};
 
 --- Gets the difference between 2 tables
@@ -87,6 +88,60 @@ end
 ---@return boolean
 function Table.contains(tab, value)
     return Table.indexOf(tab, value) ~= -1;
+end
+
+--- <b>Removes the first occurrence of a value in a list.</b>
+---@param tab any[]
+---@param v any
+---@return any
+function Table.remove(tab, v)
+    local index = Table.indexOf(tab, v);
+    if (index == nil) then return end
+    return table.remove(tab, index);
+end
+
+--- <b>Adds a value to a list.</b>
+---@param list any[]
+---@param value any
+---@param allowDupes boolean? Whether to allow duplicate values
+---@return boolean success Whether the value was added
+function Table.add(list, value, allowDupes)
+    allowDupes = Helper._def(allowDupes, false);
+
+    if (allowDupes) then
+        table.insert(list, value);
+        return true;
+    else
+        if (not Table.contains(list, value)) then
+            table.insert(list, value);
+            return true;
+        else
+            return false;
+        end
+    end
+end
+
+--- <b>Sets a table to another table while keeping the same table pointer.</b> <br>
+--- `Helper.set({1, 2, 3}, {"some", 1, "other", "stuff")` = {1, 2, 3}
+---@param fromTab table
+---@param toTab table
+function Table.set(fromTab, toTab)
+    local toRemove = {};
+    for k, v in pairs(toTab) do
+        toRemove[k] = true;
+    end
+    for k, _ in pairs(toRemove) do
+        toTab[k] = nil;
+    end
+    for k, v in pairs(fromTab) do
+        toTab[k] = v;
+    end
+end
+
+function Table.concat(tab1, tab2)
+    for _, v in ipairs(tab2) do
+        table.insert(tab1, v);
+    end
 end
 
 return Table;

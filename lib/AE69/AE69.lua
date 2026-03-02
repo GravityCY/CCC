@@ -3,21 +3,25 @@ local Table = require("lib.Table");
 local Loggy = require("lib.Loggy");
 local Queue = require("lib.Queue");
 local Event = require("lib.Event");
+local Helper= require("lib.Helper")
+
+local TaskManager = require("lib.AE69.TaskManager");
+local Recipe = require("lib.AE69.Recipe");
+local Porter = require("lib.AE69.Porter");
+local Task = TaskManager.Task;
 
 Loggy.setHandler(Loggy.FileLogHandler.new("ae69.log", false));
 
 local LOGGER = Loggy.get("ae69").setDebug(true);
 
---- TODO: IMPORTERS AND EXPORTERS
 --- TODO: RETURN MISSING MATERIALS
 
-
 local AE69 = {};
-
-local TaskManager = require("lib.AE69.TaskManager");
-local Recipe = require("lib.AE69.Recipe");
-local Task = TaskManager.Task;
+AE69.Porter = Porter;
 AE69.Recipe = Recipe;
+
+AE69.Serializers = {};
+AE69.Deserializers = {};
 
 AE69.OnRunTasks = Event.new(false, false);
 AE69.OnTaskComplete = Event.new(false, false);
@@ -38,6 +42,11 @@ local localName = modem.getNameLocal();
 ---@type table<string, Recipe>
 local recipes = {};
 
+---@type table<string, Exporter>
+local exporters = {};
+---@type table<string, Importer>
+local importers = {};
+
 ---@type Inventorio
 local buffer = nil;
 
@@ -49,6 +58,8 @@ local stockpile = {};
 
 local taskManager = TaskManager.new();
 taskManager.taskQueues["__turtle-crafter__"] = Queue.new();
+
+local paused = false;
 
 --- Converts a crafting grid slot to a turtle slot
 ---@param slot number
@@ -174,20 +185,144 @@ local function craftProcessor(recipe, recipeAmount)
     return true;
 end
 
-function AE69.getStockpiles()
-    return stockpile;
+--- # Serializers
+---@return string
+function AE69.Serializers.stockpiles()
+    local objs = {};
+    for name, amount in pairs(AE69.getStockpiles()) do
+        ---@class SerializedStockpile
+        local obj = {
+            name = name;
+            amount = amount;
+        }
+        table.insert(objs, obj);
+    end
+    return textutils.serialize(objs);
 end
 
+---@return string
+function AE69.Serializers.recipes()
+    local objs = {};
+
+    for id, recipe in pairs(AE69.getRecipes()) do
+        table.insert(objs, recipe);
+    end
+    
+    return textutils.serialize(objs);
+end
+
+---@return string
+function AE69.Serializers.processors()
+    local objs = {};
+
+    for _, processor in pairs(AE69.getProcessors()) do
+        ---@class SerializedProcessor
+        local obj = {
+            ---@type string
+            id=processor.id,
+            ---@type string
+            input=processor.input.peripheral.address.full,
+            ---@type string
+            output=processor.output.peripheral.address.full
+        };
+
+        table.insert(objs, obj);
+    end
+
+    return textutils.serialize(objs);
+end
+
+---@return string
+function AE69.Serializers.importers()
+    local objs = {};
+
+    for _, importer in pairs(AE69.getImporters()) do
+        table.insert(objs, importer:serialize(true));
+    end
+
+    return textutils.serialize(objs);
+end
+
+---@return string
+function AE69.Serializers.exporters()
+    local objs = {};
+
+    for _, exporter in pairs(AE69.getExporters()) do
+        table.insert(objs, exporter:serialize(true));
+    end
+
+    return textutils.serialize(objs);
+end
+
+---@return string
+function AE69.Serializers.buffers()
+    local invs = buffer.peripheral.invs();
+    for i = 1, #invs do
+        invs[i] = peripheral.getName(invs[i]);
+    end
+    return textutils.serialize(invs);
+end
+
+--- # Deserializers
+
+--- @param text? string
+--- @return SerializedStockpile[]?
+function AE69.Deserializers.stockpiles(text)
+    if (text == nil) then return end
+    return textutils.unserialize(text);
+end
+
+--- @param text? string
+--- @return Recipe[]?
+function AE69.Deserializers.recipes(text)
+    if (text == nil) then return end
+    return textutils.unserialize(text);
+end
+
+--- @param text string?
+---@return SerializedProcessor[]?
+function AE69.Deserializers.processors(text)
+    if (text == nil) then return end
+    return textutils.unserialize(text);
+end
+
+--- @param text string?
+--- @return Importer[]?
+function AE69.Deserializers.importers(text)
+    if (text == nil) then return end
+    local array = textutils.unserialize(text);
+    
+    for i = 1, #array do
+        array[i] = Porter.Importer.deserialize(array[i]);
+    end
+
+    return array;
+end
+
+--- @param text string?
+--- @return Exporter[]?
+function AE69.Deserializers.exporters(text)
+    if (text == nil) then return end
+    local array = textutils.unserialize(text);
+    
+    for i = 1, #array do
+        array[i] = Porter.Exporter.deserialize(array[i]);
+    end
+
+    return array;
+end
+
+--- @param text string?
+--- @return string[]? addresses
+function AE69.Deserializers.buffers(text)
+    if (text == nil) then return end
+    return textutils.unserialize(text);
+end
+
+---@param recipeName string
+---@param amount number
 function AE69.registerStock(recipeName, amount)
     stockpile[recipeName] = amount;
-end
-
-function AE69.removeStock(name)
-    stockpile[name] = nil;
-end
-
-function AE69.getRecipes()
-    return recipes;
 end
 
 ---@param ... Recipe
@@ -197,14 +332,9 @@ function AE69.registerRecipes(...)
     end
 end
 
-function AE69.removeRecipe(recipeName)
-    recipes[recipeName] = nil;
-end
-
-function AE69.getProcessors()
-    return processors;
-end
-
+---@param id string
+---@param inputAddr string
+---@param outputAddr string
 function AE69.registerProcessor(id, inputAddr, outputAddr)
     local temp = {
         id = id,
@@ -218,8 +348,58 @@ function AE69.registerProcessor(id, inputAddr, outputAddr)
     taskManager.taskQueues[id] = Queue.new();
 end
 
+---@param sourceAddr string
+---@param importer Importer
+function AE69.registerImporter(sourceAddr, importer)
+    importers[sourceAddr] = importer
+        :source(Inventorio.new(sourceAddr))
+end
+
+---@param targetAddr string
+---@param exporter Exporter
+function AE69.registerExporter(targetAddr, exporter)
+    exporters[targetAddr] = exporter
+        :target(Inventorio.new(targetAddr))
+end
+
+function AE69.getRecipes()
+    return recipes;
+end
+
+function AE69.getStockpiles()
+    return stockpile;
+end
+
+function AE69.getProcessors()
+    return processors;
+end
+
+function AE69.getImporters()
+    return importers;
+end
+
+function AE69.getExporters()
+    return exporters;
+end
+
+function AE69.removeStock(name)
+    stockpile[name] = nil;
+end
+
+function AE69.removeRecipe(recipeName)
+    recipes[recipeName] = nil;
+end
+
 function AE69.removeProcessor(id)
     processors[id] = nil;
+end
+
+function AE69.removeImporter(sourceAddr)
+    importers[sourceAddr] = nil;
+end
+
+function AE69.removeExporter(targetAddr)
+    exporters[targetAddr] = nil;
 end
 
 --- Initializes AE3
@@ -232,6 +412,11 @@ function AE69.init(bufferAddr)
     workbench = peripheral.find("workbench")
     modem = peripheral.find("modem");
     localName = modem.getNameLocal();
+end
+
+---@param ... string address
+function AE69.buffer(...)
+    buffer = Inventorio.merge({...});
 end
 
 --- Crafts a simple recipe 
@@ -268,15 +453,25 @@ end
 ---@param recipeName string
 ---@param amount number
 ---@return boolean success, string|nil err
-function AE69.craft(recipeName, amount)
+function AE69.queueRecipe(recipeName, amount)
     LOGGER.debug("Crafting '%s'", recipeName);
     AE69.OnCraftRoot:invoke(recipeName, amount);
-    local success, err = AE69.buildTasks(recipeName, amount);
-    if (success) then
-        AE69.getWorkerTasksForAll();
-        return true;
+    return AE69.buildTasks(recipeName, amount);
+end
+
+function AE69.queueRecipes(recipeList, amountList)
+    local mutableTotals = buffer:getTotals()
+    for index, material in pairs(recipeList) do
+        local need = amountList[index];
+        LOGGER.debug("[craftAll] Queueing %d %s", need, material);
+        AE69.OnCraftRoot:invoke(material, need);
+        buildTasks(material, need, nil, mutableTotals);
+        -- local success, error = pcall(buildTaskQueue, material, need - count, nil, queueMap, mutableTotals);
+        -- if (not success) then
+        --     LOGGER.debug(error);
+        --     return false;
+        -- end
     end
-    return false, err;
 end
 
 --- learns a recipe from the turtles inventory
@@ -321,22 +516,9 @@ function AE69.learn(shaped, processorId)
     end
 end
 
-function AE69.queueAll(recipeList, amountList)
-    local mutableTotals = buffer:getTotals()
-    for index, material in pairs(recipeList) do
-        local need = amountList[index];
-        LOGGER.debug("[craftAll] Queueing %d %s", need, material);
-        AE69.OnCraftRoot:invoke(material, need);
-        buildTasks(material, need, nil, mutableTotals);
-        -- local success, error = pcall(buildTaskQueue, material, need - count, nil, queueMap, mutableTotals);
-        -- if (not success) then
-        --     LOGGER.debug(error);
-        --     return false;
-        -- end
-    end
-end
-
 function AE69.pollTasks()
+    if (paused) then return end
+
     local recipeList = {};
     local amountList = {};
 
@@ -348,7 +530,12 @@ function AE69.pollTasks()
         end
     end
 
-    AE69.queueAll(recipeList, amountList);
+    AE69.queueRecipes(recipeList, amountList);
+end
+
+function AE69.pause(set)
+    if (set ~= nil) then paused = set;
+    else paused = not paused; end
 end
 
 function AE69.getTaskWorkers()
@@ -357,6 +544,8 @@ function AE69.getTaskWorkers()
     for queueName, taskQueue in pairs(taskManager.taskQueues) do
         workers[#workers + 1] = function()
             while true do
+                while paused do sleep(1); end
+
                 LOGGER.debug("Running queue '%s'", queueName);
                 local task = nil;
                 while true do
@@ -373,6 +562,33 @@ function AE69.getTaskWorkers()
         end
     end
 
+    return workers;
+end
+
+function AE69.getPorterWorkers()
+    local workers = {};
+
+    workers[#workers + 1] = function()
+        while true do
+            while paused do sleep(1); end
+            for exportAddr, exporter in pairs(exporters) do
+                if (paused) then break end
+                exporter:run(buffer);
+            end
+            sleep(1);
+        end
+    end
+
+    workers[#workers + 1] = function()
+        while true do
+            while paused do sleep(1); end
+            for importAddr, importer in pairs(importers) do
+                if (paused) then break end
+                importer:run(buffer);
+            end
+            sleep(1);
+        end
+    end
     return workers;
 end
 

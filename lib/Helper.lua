@@ -6,8 +6,8 @@ local Helper = {};
 local executeLimit = 128;
 
 function Helper.toBool(string, tru, fals)
-    tru = Helper.def(tru, "true");
-    fals = Helper.def(fals, "false");
+    tru = Helper._def(tru, "true");
+    fals = Helper._def(fals, "false");
 
     if (string == tru) then return true;
     elseif (string == fals) then return false; end
@@ -84,7 +84,7 @@ function Helper.pullAny(...)
 end
 
 function Helper.toString(tab, separator)
-    separator = Helper.def(separator, " ");
+    separator = Helper._def(separator, " ");
 
     local ret = tab[1];
     for i = 2, #tab do
@@ -290,10 +290,29 @@ function Helper.loadJSON(path)
     return textutils.unserialiseJSON(unserialised);
 end
 
---- <b>Saves a table to a file.</b>
+--- <b>Writes a string to a file.</b>
+---@param path string
+---@param str string
+function Helper.save(path, str)
+    local file = fs.open(path, "w");
+    file.write(str);
+    file.close();
+end
+
+--- <b>Writes a string to a file.</b>
+---@param path string
+function Helper.load(path)
+    if (not fs.exists(path)) then return; end
+    local file = fs.open(path, "r");
+    local str = file.readAll();
+    file.close();
+    return str;
+end
+
+--- <b>Serializes a table to a file.</b>
 ---@param path string
 ---@param tab table
-function Helper.save(path, tab)
+function Helper.serialize(path, tab)
     local serialized = textutils.serialize(tab);
     local file = fs.open(path, "w");
     file.write(serialized);
@@ -303,7 +322,7 @@ end
 --- <b>Loads a table from a file.</b>
 ---@param path string
 ---@return table|nil
-function Helper.load(path)
+function Helper.deserialize(path)
     if (not fs.exists(path)) then return; end
     local file = fs.open(path, "r");
     local unserialised = file.readAll();
@@ -315,7 +334,7 @@ end
 ---@param value any
 ---@param defValue any
 ---@return any
-function Helper.def(value, defValue)
+function Helper._def(value, defValue)
     if (value == nil) then return defValue; end
     return value;
 end
@@ -341,72 +360,6 @@ end
 function Helper._gnil(tab, key)
     if (tab == nil) then return nil; end
     return tab[key];
-end
-
---- <b>Returns the index of a value in a list.</b>
----@param tab any[]
----@param v any
----@return integer|nil
-function Helper.indexOfT(tab, v)
-    for i, v2 in ipairs(tab) do
-        if (v == v2) then
-            return i;
-        end
-    end
-    return nil;
-end
-
---- <b>Removes the first occurrence of a value in a list.</b>
----@param tab any[]
----@param v any
----@return any
-function Helper.remove(tab, v)
-    local index = Helper.indexOfT(tab, v);
-    if (index == nil) then return end
-    return table.remove(tab, index);
-end
-
---- <b>Adds a value to a list.</b>
----@param list any[]
----@param value any
----@param allowDupes boolean? Whether to allow duplicate values
----@return boolean success Whether the value was added
-function Helper.add(list, value, allowDupes)
-    allowDupes = Helper.def(allowDupes, false);
-    if (allowDupes) then
-        table.insert(list, value);
-        return true;
-    else
-        if (not Helper.contains(list, value)) then
-            table.insert(list, value);
-            return true;
-        else
-            return false;
-        end
-    end
-end
-
---- <b>Sets a table to another table while keeping the same table pointer.</b> <br>
---- `Helper.set({1, 2, 3}, {"some", 1, "other", "stuff")` = {1, 2, 3}
----@param fromTab table
----@param toTab table
-function Helper.set(fromTab, toTab)
-    local toRemove = {};
-    for k, v in pairs(toTab) do
-        toRemove[k] = true;
-    end
-    for k, _ in pairs(toRemove) do
-        toTab[k] = nil;
-    end
-    for k, v in pairs(fromTab) do
-        toTab[k] = v;
-    end
-end
-
-function Helper.concat(tab1, tab2)
-    for _, v in ipairs(tab2) do
-        table.insert(tab1, v);
-    end
 end
 
 --- <b>Creates an array of arrays.</b>

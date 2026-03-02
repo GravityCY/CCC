@@ -5,19 +5,28 @@ local Path = require("lib.Path");
 local EasyAddress = require("lib.EasyAddress");
 local CMDL = require("lib.CMDL");
 local Ask  = require("lib.Ask")
+local Inventorio = require("lib.Inventorio")
+local Identifier = require("lib.Identifier")
+local Porter = AE69.Porter;
 local Recipe = AE69.Recipe;
+
+-- TODO: MONITOR DISPLAYS, MAYBE AE69 NEEDS TO ADD FUNCTIONALITY TOO IDK
 
 local dataDirectoryPath = Path.new(Std.getAndMakeDirectory("ae69"));
 local recipesFilePath = Path.join(dataDirectoryPath, "recipes.luaj");
 local processorsFilePath = Path.join(dataDirectoryPath, "processors.luaj");
 local stockpilesFilePath = Path.join(dataDirectoryPath, "stockpiles.luaj");
 local buffersFilePath = Path.join(dataDirectoryPath, "buffers.luaj");
+local importsFilePath = Path.join(dataDirectoryPath, "imports.luaj");
+local exportsFilePath = Path.join(dataDirectoryPath, "exports.luaj");
 
 local function setup()
-    local recipes = Helper.load(recipesFilePath);
-    local processors = Helper.load(processorsFilePath);
-    local stockpiles = Helper.load(stockpilesFilePath);
-    local buffers = Helper.load(buffersFilePath);
+    local recipes = AE69.Deserializers.recipes(Helper.load(recipesFilePath));
+    local processors = AE69.Deserializers.processors(Helper.load(processorsFilePath));
+    local stockpiles = AE69.Deserializers.stockpiles(Helper.load(stockpilesFilePath));
+    local buffers = AE69.Deserializers.buffers(Helper.load(buffersFilePath));
+    local importers = AE69.Deserializers.importers(Helper.load(importsFilePath));
+    local exporters = AE69.Deserializers.exporters(Helper.load(exportsFilePath));
 
     if (recipes ~= nil) then
         print("Loading recipe definitions...");
@@ -28,75 +37,92 @@ local function setup()
 
     if (processors ~= nil) then
         print("Loading processor definitions...");
-        for processorId, processor in pairs(processors) do
-            AE69.registerProcessor(processorId, processor.input, processor.output);
+        for _, processor in ipairs(processors) do
+            AE69.registerProcessor(processor.id, processor.input, processor.output);
         end
     end
 
     if (stockpiles ~= nil) then
         print("Loading stockpile definitions...");
-        for recipeName, amount in pairs(stockpiles) do
-            AE69.registerStock(recipeName, amount);
+        for _, stockpile in pairs(stockpiles) do
+            AE69.registerStock(stockpile.name, stockpile.amount);
+        end
+    end
+
+    if (importers ~= nil) then
+        for _, importer in ipairs(importers) do
+            AE69.registerImporter(importer.data.source.peripheral.address.full, importer);
+        end
+    end
+
+    if (exporters ~= nil) then
+        for _, exporter in ipairs(exporters) do
+            AE69.registerExporter(exporter.data.target.peripheral.address.full, exporter);
         end
     end
 
     print("Initializing AE69...\n");
     if (buffers == nil) then
-        buffers = {};
-        buffers[1] = EasyAddress.wait("buffer", "The AE69 buffer with all the items");
-        Helper.save(buffersFilePath, buffers);
+        buffers = EasyAddress.waitList("buffer", "The AE69 buffers with all the items");
+        Helper.serialize(buffersFilePath, buffers);
     end
 
-    AE69.init(buffers[1]);
+    AE69.buffer(table.unpack(buffers));
 end
 
-local function getAnyItem()
+local function getAnyItem(detail)
     for i = 1, 16 do
         local item = turtle.getItemDetail(i);
-        if (item ~= nil) then return item end
+        if (item ~= nil) then
+            if (detail) then return turtle.getItemDetail(i, true); end
+            return item;
+        end
     end
 end
 
-local function getSerializableProcessors(registry)
-    local processors = {};
-
-    for id, processor in pairs(registry) do
-        processors[id] = {
-            input = processor.input.peripheral.address.full,
-            output = processor.output.peripheral.address.full
-        };
-    end
-
-    return processors;
-end
-
+---@param args PeekableIterator<string>
 local function processorCmd(args)
-    if (args[1] == "add") then
-        local id = args[2] or Ask.ask("Choose a unique name for this processor: ");
+    if (not args:hasNext()) then
+        print("Expected: add, remove, list");
+        return;
+    end
+
+    local cmd = args:next();
+    if (cmd == "add") then
+        local id = args:next() or Ask.ask("Choose a unique name for this processor: ");
         ---@cast id string
 
         local input = EasyAddress.wait(id .. " input", "The processors input inventory")
         local output = EasyAddress.wait(id .. " output", "The processors output inventory")
         AE69.registerProcessor(id, input, output);
-        Helper.save(processorsFilePath, getSerializableProcessors(AE69.getProcessors()));
-    elseif (args[1] == "remove") then
-        local id = args[2] or Ask.ask("Choose the name of the processor to remove: ");
+        Helper.save(processorsFilePath, AE69.Serializers.processors());
+    elseif (cmd == "remove") then
+        local id = args:next() or Ask.ask("Choose the name of the processor to remove: ");
         ---@cast id string
 
         AE69.removeProcessor(id);
-        Helper.save(processorsFilePath, getSerializableProcessors(AE69.getProcessors()));
-    else
-        local filter = args[1];
+        Helper.save(processorsFilePath, AE69.Serializers.processors());
+    elseif (cmd == "list") then
+        local filter = args:next();
         for name, processor in pairs(AE69.getProcessors()) do
             if (filter == nil or name:find(filter)) then
                 print(name);
             end
         end
+    else
+        print("Unknown command: " .. cmd, "Expected: add, remove, list");
     end
 end
 
+---@param args PeekableIterator<string>
 local function recipeCmd(args)
-    if (args[1] == "add") then
+    if (not args:hasNext()) then
+        print("Expected: add, remove, list");
+        return;
+    end
+
+    local cmd = args:next();
+    if (cmd == "add") then
         local ready = Ask.ask("Input stuff in the turtle and please type (y/n) when done:", Ask.yesNo())
         if (not ready) then return end
 
@@ -125,8 +151,8 @@ local function recipeCmd(args)
         if (not confirm) then return end
 
         AE69.registerRecipes(recipe);
-        Helper.save(recipesFilePath, AE69.getRecipes());
-    elseif (args[1] == "remove") then
+        Helper.serialize(recipesFilePath, AE69.getRecipes());
+    elseif (cmd == "remove") then
         if (args[2] == nil) then
             local item = nil;
             for i = 1, 16 do
@@ -140,30 +166,45 @@ local function recipeCmd(args)
             end
 
             AE69.removeRecipe(item.name);
-            Helper.save(recipesFilePath, AE69.getRecipes());
+            Helper.serialize(recipesFilePath, AE69.getRecipes());
         end
 
-    else
-        local filter = args[1];
+    elseif (cmd == "list") then
+        local filter = args:next();
         for name, recipe in pairs(AE69.getRecipes()) do
             if (filter == nil or name:find(filter)) then
                 print(name);
             end
         end
+    else
+        print("Unknown command '" .. cmd .. "' Expected: add, remove, list");
     end
 end
 
+---@param args PeekableIterator<string>
 local function stockpileCmd(args)
-    if (args[1] == "set") then
-        local name = args[2];
-        local amount = args[3];
+    if (not args:hasNext()) then
+        print("Expected: set, remove, list");
+        return;
+    end
 
-        if (name ~= nil) then
-            if (amount ~= nil) then
-                amount = tonumber(amount);
+    local cmd = args:next();
+    if (cmd == "set") then
+        -- local name = args:next();
+        -- local amount = args:next();
+        local name = nil;
+        local amount = nil;
+        if (args:hasNext()) then
+            name = args:next();
+            if (args:hasNext()) then
+                amount = tonumber(args:next());
+                if (amount == nil) then
+                    print(amount .. " is not a number!");
+                    return
+                end
             end
         else
-            local ready = Ask.ask("Input the item you want to stockpile in the turtle (y/n)", Ask.yesNo())
+            local ready = Ask.ask("Put stockpile item in turtle (y/n): ", Ask.yesNo())
             if (not ready) then return end
     
             local item = getAnyItem();
@@ -175,16 +216,19 @@ local function stockpileCmd(args)
 
             name = item.name;
         end
-        amount = amount or Ask.ask("Enter the amount of " .. name .. " you want to stockpile: ", Ask.num(1));
 
-        local confirm = Ask.ask("Are you sure you want to stockpile " .. amount .. " " .. name .. " (y/n): ", Ask.yesNo())
+        amount = amount or Ask.ask("Enter amount of '" .. name .. "' you want to stockpile: ", Ask.num(1));
+        ---@cast amount number
+
+        local confirm = Ask.ask("Stockpile " .. amount .. " '" .. name .. "'? (y/n): ", Ask.yesNo())
         if (not confirm) then return end
 
         AE69.registerStock(name, amount);
-        Helper.save(stockpilesFilePath, AE69.getStockpiles());
-    elseif (args[1] == "remove") then
-        if (args[2] ~= nil) then
-            name = args[2];
+        Helper.save(stockpilesFilePath, AE69.Serializers.stockpiles());
+    elseif (cmd == "remove") then
+        local name = nil;
+        if (args:hasNext()) then
+            name = args:next();
         else
             local ready = Ask.ask("Input the item you want to stockpile in the turtle (y/n)", Ask.yesNo())
             if (not ready) then return end
@@ -199,15 +243,178 @@ local function stockpileCmd(args)
             name = item.name;
         end
 
-        local confirm = Ask.ask("Are you sure you want to remove the stockpile for " .. name .. " (y/n): ", Ask.yesNo())
+        local confirm = Ask.ask("Remove '" .. name .. "' stockpile? (y/n): ", Ask.yesNo())
         if (not confirm) then return end
 
         AE69.removeStock(name);
-        Helper.save(stockpilesFilePath, AE69.getStockpiles());
-    else
-        for name, amount in pairs(AE69.getStockpiles()) do
-            print(name .. ": " .. amount);
+        Helper.save(stockpilesFilePath, AE69.Serializers.stockpiles());
+    elseif (cmd == "list") then
+        local filter = args:next();
+         for name, amount in pairs(AE69.getStockpiles()) do
+            if (filter == nil or name:find(filter)) then
+                print(name .. ": " .. amount);
+            end
         end
+    else
+        print("Unknown command: " .. cmd, "Expected: set, remove, list");
+    end
+end
+
+---@param args PeekableIterator<string>
+local function importCmd(args)
+    if (not args:hasNext()) then
+        print("Expected: add, remove, list");
+        return;
+    end
+
+    local cmd = args:next();
+    if (cmd == "add") then
+        local srcAddr = EasyAddress.wait("importer", "The inventory to import items from");
+        local importer = Porter.Importer.new();
+        local filterType = Ask.choose("Item Filter: ", {byIndex={"By Name", "By Item Tag", "Any Item"}})
+        print();
+        if (filterType == 1) then
+            local itemName = Ask.ask("Enter Name (blank to find): ");
+            ---@cast itemName string
+        
+            if (itemName == "") then
+                local item = getAnyItem();
+                if (item == nil) then
+                    print("Couldn't find any item...");
+                    return;
+                end
+                itemName = item.name;
+            end
+        
+            if (not Ask.ask(("Import '%s' from %s? (y/n): "):format(itemName, srcAddr), Ask.yesNo())) then return end
+            importer:filter(Porter.PredicateRegistry.ITEM_NAME:create(itemName));
+        elseif (filterType == 2) then
+            local itemTag = Ask.ask("Enter Item Tag (blank to find): ");
+            ---@cast itemTag string
+        
+            if (itemTag == "") then
+                local item = getAnyItem(true);
+                if (item == nil) then
+                    print("Couldn't find any item...");
+                    return;
+                end
+                if (item.tags == nil) then
+                    print("That item doesn't have any item tags...");
+                    return;
+                end
+                local _, value = Ask.choose("Item Tags: ", {byKey=item.tags})
+                print();
+                itemTag = value;
+            end
+            if (not Ask.ask(("Import '%s' from %s? (y/n): "):format(itemTag, srcAddr), Ask.yesNo())) then return end
+            importer:filter(Porter.PredicateRegistry.ITEM_TAG:create(itemTag));
+        end
+
+        AE69.registerImporter(srcAddr, importer);
+        Helper.save(importsFilePath, AE69.Serializers.importers());
+    elseif (cmd == "remove") then
+        AE69.pause(true);
+        local importers = AE69.getImporters();
+        local addr = EasyAddress.wait("importer to remove", "The importer to remove");
+        if (importers[addr] == nil) then 
+            print("That's not an importer...");
+            AE69.pause()
+            return
+        end
+        
+        print("Found valid importer: " .. addr);
+        print("Item Filter: " .. importers[addr].data.itemFilter.args[1]);
+        
+        if (not Ask.ask("Sure? (y/n): ", Ask.yesNo())) then return end
+        AE69.removeImporter(addr);
+        Helper.save(importsFilePath, AE69.Serializers.importers());
+        AE69.pause();
+    elseif (cmd == "list") then
+        for addr, importer in pairs(AE69.getImporters()) do
+            print(addr .. " (".. Identifier.getPrettyPath(importer.data.itemFilter.args[1]) ..")");
+        end
+    else
+        print("Unknown command: " .. cmd, "Expected: add, remove, list");
+    end
+end
+
+---@param args PeekableIterator<string>
+local function exportCmd(args)
+    if (not args:hasNext()) then
+        print("Expected: add, remove, list");
+        return;
+    end
+
+    AE69.pause();
+
+    local cmd = args:next();
+    if (cmd == "add") then
+        local dstAddr = EasyAddress.wait("exporter", "The inventory to export items to");
+        local exporter = Porter.Exporter.new();
+        local filterType = Ask.choose("Item Filter: ", {byIndex={"By Name", "By Item Tag", "Any Item"}})
+        print();
+        if (filterType == 1) then
+            local itemName = Ask.ask("Enter Name (blank to find): ");
+            ---@cast itemName string
+        
+            if (itemName == "") then
+                local item = getAnyItem();
+                if (item == nil) then
+                    print("Couldn't find any item...");
+                    return;
+                end
+                itemName = item.name;
+            end
+        
+            if (not Ask.ask(("Export '%s' to %s? (y/n): "):format(itemName, dstAddr), Ask.yesNo())) then return end
+            exporter:filter(Porter.PredicateRegistry.ITEM_NAME:create(itemName));
+        elseif (filterType == 2) then
+            local itemTag = Ask.ask("Enter Item Tag (blank to find): ");
+            ---@cast itemTag string
+        
+            if (itemTag == "") then
+                local item = getAnyItem(true);
+                if (item == nil) then
+                    print("Couldn't find any item...");
+                    return;
+                end
+                if (item.tags == nil) then
+                    print("That item doesn't have any item tags...");
+                    return;
+                end
+                local _, value = Ask.choose("Item Tags: ", {byKey=item.tags})
+                print();
+                itemTag = value;
+            end
+            if (not Ask.ask(("Export '%s' to %s? (y/n): "):format(itemTag, dstAddr), Ask.yesNo())) then return end
+            exporter:filter(Porter.PredicateRegistry.ITEM_TAG:create(itemTag));
+        end
+
+        AE69.registerExporter(dstAddr, exporter);
+        Helper.save(exportsFilePath, AE69.Serializers.exporters());
+    elseif (cmd == "remove") then
+        AE69.pause(true);
+        local exporters = AE69.getExporters();
+        local addr = EasyAddress.wait("exporter to remove", "The exporter to remove");
+        if (exporters[addr] == nil) then 
+            print("That's not an exporter...");
+            AE69.pause()
+            return
+        end
+        
+        print("Found valid Exporter: " .. addr);
+        print("Item Filter: " .. exporters[addr].data.itemFilter.args[1]);
+        
+        if (not Ask.ask("Sure? (y/n): ", Ask.yesNo())) then return end
+        AE69.removeExporter(addr);
+        Helper.save(exportsFilePath, AE69.Serializers.exporters());
+        AE69.pause();
+    elseif (cmd == "list") then
+        for addr, exporter in pairs(AE69.getExporters()) do
+            print(addr .. " (".. Identifier.getPrettyPath(exporter.data.itemFilter.args[1]) ..")");
+        end
+    else
+        print("Unknown command: " .. cmd, "Expected: add, remove, list");
     end
 end
 
@@ -217,13 +424,20 @@ local CMDI = CMDL.new();
 CMDI:command("processor", "modify processors", processorCmd);
 CMDI:command("recipe", "modify recipes", recipeCmd);
 CMDI:command("stockpile", "modify stockpile data", stockpileCmd);
+CMDI:command("import", "import items from a specific inventory", importCmd);
+CMDI:command("export", "export items to a specific inventory", exportCmd);
+--- TODO: implement below
+CMDI:command("cancraft", "check if you can craft a recipe", exportCmd);
+CMDI:command("materials", "get needed materials for recipe", exportCmd);
+CMDI:command("total", "get total items in buffer", exportCmd);
 
 local function commandThread()
     term.clear();
     term.setCursorPos(1, 1);
     CMDI:help();
     while true do
-        CMDI:run(read());
+        write("Enter a command: ");
+        CMDI:run(read(nil, CMDI:getHistory()));
     end
 end
 
@@ -235,8 +449,20 @@ local function pollThread()
 end
 
 local function taskThread()
-    local workers = AE69.getTaskWorkers();
-    parallel.waitForAll(table.unpack(workers));
+    local allWorkers = {};
+
+    local craftWorkers = AE69.getTaskWorkers();
+    local porterWorkers = AE69.getPorterWorkers();
+
+    for index, worker in ipairs(craftWorkers) do
+        table.insert(allWorkers, worker);
+    end
+
+    for index, worker in ipairs(porterWorkers) do
+        table.insert(allWorkers, worker);
+    end
+
+    parallel.waitForAll(table.unpack(allWorkers));
 end
 
 local function onCraftRoot(name, count)

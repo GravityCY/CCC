@@ -3,6 +3,7 @@ local Helper = require("lib.Helper")
 local Ask = require("lib.Ask");
 local Graphics = require("lib.Graphics")
 local Std = require("lib.Std");
+local Table = require("lib.Table")
 
 local EasyAddress = {};
 
@@ -100,14 +101,15 @@ function EasyAddress.wait(name, description)
     end
 end
 
---- <b>Waits for an peripheral to be enabled.</b>
+--- <b>Given a list adds or removes peripherals</b>
 ---@param name string
 ---@param description string|nil
+---@param list string[]? addresses
 ---@return string[]
 function EasyAddress.waitList(name, description, list)
     list = list or {};
 
-    local ret = Helper.copy(list);
+    local ret = Table.deepCopy(list);
     local pause = false;
 
     local confirm = true;
@@ -185,22 +187,22 @@ function EasyAddress.waitList(name, description, list)
             if (isAdd) then
                 local toRemove = {};
                 for _, addr in ipairs(addrs) do
-                    if (Helper.contains(ret, addr)) then
-                        table.insert(toRemove, addr);
+                    if (Table.contains(ret, addr)) then
+                        Table.add(toRemove, addr);
                     end
                 end
                 for _, addr in ipairs(toRemove) do
-                    Helper.remove(addrs, addr);
+                    Table.remove(addrs, addr);
                 end
             else
                 local toRemove = {};
                 for _, addr in ipairs(addrs) do
-                    if (not Helper.contains(ret, addr)) then
-                        table.insert(toRemove, addr);
+                    if (not Table.contains(ret, addr)) then
+                        Table.add(toRemove, addr);
                     end
                 end
                 for _, addr in ipairs(toRemove) do
-                    Helper.remove(addrs, addr);
+                    Table.remove(addrs, addr);
                 end
             end
 
@@ -211,18 +213,18 @@ function EasyAddress.waitList(name, description, list)
             toggleKeyInput();
             if (event == "peripheral") then
                 for index, addr in ipairs(filteredAddrs) do
-                    if (not Helper.contains(ret, addr)) then
+                    if (not Table.contains(ret, addr)) then
                         speaker.playNote("harp", 1, 1);
                         print(("Added '%s' to '%s'"):format(addr, name));
-                        Helper.add(ret, addr);
+                        Table.add(ret, addr);
                     end
                 end
             elseif (event == "peripheral_detach") then
                 for index, addr in ipairs(filteredAddrs) do
-                    if (Helper.contains(ret, addr)) then
+                    if (Table.contains(ret, addr)) then
                         speaker.playNote("bass", 1, 12);
                         print(("Removed '%s' from '%s'"):format(addr, name));
-                        Helper.remove(ret, addr);
+                        Table.remove(ret, addr);
                     end
                 end
             end
@@ -298,7 +300,7 @@ function EasyAddress.new(namespace)
     function self.modifyList(name)
         local prev = translations[name];
         local new = EasyAddress.waitList(name, decriptions[name], prev);
-        Helper.set(new, prev)
+        Table.set(new, prev)
         self.save();
     end
 

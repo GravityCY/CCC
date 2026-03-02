@@ -9,7 +9,7 @@ local Sides = require("lib.Sides");
 local Inventorio = require("lib.Inventorio")
 local Peripheral = require("lib.Peripheral")
 
-local _def = Helper.def;
+local _def = Helper._def;
 local _if = Helper._if;
 
 local facing = Sides.FORWARD;
