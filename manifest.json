@@ -1,4 +1,5 @@
 {"files": {
+"README.md": true,
 "lib/Tubby.lua": true,
 "lib/EasyAddress.lua": true,
 "lib/Ask.lua": true,
