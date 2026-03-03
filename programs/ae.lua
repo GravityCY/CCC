@@ -51,12 +51,14 @@ local function setup()
 
     if (importers ~= nil) then
         for _, importer in ipairs(importers) do
+            ---@diagnostic disable-next-line: undefined-field
             AE69.registerImporter(importer.data.source.peripheral.address.full, importer);
         end
     end
 
     if (exporters ~= nil) then
         for _, exporter in ipairs(exporters) do
+            ---@diagnostic disable-next-line: undefined-field
             AE69.registerExporter(exporter.data.target.peripheral.address.full, exporter);
         end
     end
@@ -123,6 +125,7 @@ local function porterFilterForm(porter)
         predicate = Porter.PredicateRegistry.ITEM_TAG:create(itemTag);
         itemMember = itemTag;
     end
+    ---@diagnostic disable-next-line: undefined-field
     if (not Ask.ask(("Only allow items with name '%s' (y/n): "):format(itemMember), Ask.yesNo())) then return end
     porter:filter(predicate);
     return true;
@@ -142,6 +145,7 @@ local function processorCmd(args)
 
         local input = EasyAddress.wait(id .. " input", "The processors input inventory")
         local output = EasyAddress.wait(id .. " output", "The processors output inventory")
+        if (input == nil or output == nil) then return end
         AE69.registerProcessor(id, input, output);
         Helper.save(processorsFilePath, AE69.Serializers.processors());
     elseif (cmd == "remove") then
@@ -153,6 +157,7 @@ local function processorCmd(args)
     elseif (cmd == "list") then
         local filter = args:next();
         for name, processor in pairs(AE69.getProcessors()) do
+            ---@diagnostic disable-next-line: undefined-field
             if (filter == nil or name:find(filter)) then
                 print(name);
             end
@@ -220,6 +225,7 @@ local function recipeCmd(args)
     elseif (cmd == "list") then
         local filter = args:next();
         for name, recipe in pairs(AE69.getRecipes()) do
+            ---@diagnostic disable-next-line: undefined-field
             if (filter == nil or name:find(filter)) then
                 print(name);
             end
@@ -270,7 +276,9 @@ local function stockpileCmd(args)
 
         local confirm = Ask.ask("Stockpile " .. amount .. " '" .. name .. "'? (y/n): ", Ask.yesNo())
         if (not confirm) then return end
-
+        
+        ---@cast name string
+        
         AE69.registerStock(name, amount);
         Helper.save(stockpilesFilePath, AE69.Serializers.stockpiles());
     elseif (cmd == "remove") then
@@ -299,6 +307,7 @@ local function stockpileCmd(args)
     elseif (cmd == "list") then
         local filter = args:next();
          for name, amount in pairs(AE69.getStockpiles()) do
+            ---@diagnostic disable-next-line: undefined-field
             if (filter == nil or name:find(filter)) then
                 print(name .. ": " .. amount);
             end
@@ -318,6 +327,8 @@ local function importCmd(args)
     local cmd = args:next();
     if (cmd == "add") then
         local srcAddr = EasyAddress.wait("importer", "The inventory to import items from");
+        if (srcAddr == nil) then return end
+
         local srcInv = peripheral.wrap(srcAddr);
         local importer = Porter.Importer.new();
         if (not porterFilterForm(importer)) then return end
@@ -367,6 +378,8 @@ local function exportCmd(args)
     local cmd = args:next();
     if (cmd == "add") then
         local dstAddr = EasyAddress.wait("exporter", "The inventory to export items to");
+        if (dstAddr == nil) then return end
+
         local dstInv = peripheral.wrap(dstAddr);
         local exporter = Porter.Exporter.new();
         if (not porterFilterForm(exporter)) then return end

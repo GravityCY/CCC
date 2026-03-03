@@ -1,3 +1,4 @@
+---@diagnostic disable: undefined-field
 local Inventorio = require("lib.Inventorio");
 
 local PorterLib = {};

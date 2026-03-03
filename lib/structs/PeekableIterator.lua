@@ -20,7 +20,7 @@ function PeekableIterator:hasNext()
     return self.data.index <= #self.data.list;
 end
 
----@return T
+---@return T?
 function PeekableIterator:next()
     if (not self:hasNext()) then return end
     local value = self.data.list[self.data.index];

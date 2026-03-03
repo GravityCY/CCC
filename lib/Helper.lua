@@ -22,12 +22,14 @@ function Helper.pullRepeat(name)
     local queued = false;
 
     while true do
+        ---@diagnostic disable-next-line: undefined-field
         local args = {os.pullEvent()};
         local event = args[1];
         if (event == "helper_event") then break
         elseif (event == name) then
             if (not queued) then
                 queued = true;
+                ---@diagnostic disable-next-line: undefined-field
                 os.queueEvent("helper_event");
             end
             table.insert(ret, args);
@@ -38,8 +40,7 @@ end
 
 --- <b>Pulls multpiple events.</b>
 ---@param ... string Event
----@return string
----@return table
+---@return string, table
 function Helper.pullMultiple(...)
     local eventList = {...};
     local eventMap = {};
@@ -52,18 +53,21 @@ function Helper.pullMultiple(...)
     end
 
     while true do
+        ---@diagnostic disable-next-line: undefined-field
         local args = {os.pullEvent()};
         local event = args[1];
         if (event == "helper_event") then break
         elseif (event == current or eventMap[event] ~= nil) then
             if (not queued) then
                 current = event;
+                ---@diagnostic disable-next-line: undefined-field
                 os.queueEvent("helper_event");
                 queued = true;
             end
             table.insert(ret, args);
         end
     end
+    ---@cast current string
     return current, ret;
 end
 
@@ -76,6 +80,7 @@ function Helper.pullAny(...)
     end
 
     while true do
+        ---@diagnostic disable-next-line: undefined-field
         local args = {os.pullEvent()};
         if (eventMap[args[1]] ~= nil) then
             return table.unpack(args);
@@ -98,9 +103,9 @@ function Helper.batchExecute(funcList, skipPartial, limit)
     for batch = 1, batches do
       local start = ((batch - 1) * limit) + 1
       local batch_end = math.min(start + limit - 1, #funcList)
-      parallel.waitForAll(unpack(funcList, start, batch_end))
+      parallel.waitForAll(table.unpack(funcList, start, batch_end))
     end
-    return {unpack(funcList, 1 + limit * batches)};
+    return {table.unpack(funcList, 1 + limit * batches)};
 end
 
 --- <b>Wait for all functions to finish.</b>
@@ -152,6 +157,7 @@ end
 ---@param index integer
 ---@return string
 function Helper.getBeforeIndex(str, index)
+    ---@diagnostic disable-next-line: undefined-field
     return str:sub(1, index - 1);
 end
 
@@ -161,6 +167,7 @@ end
 ---@param index integer
 ---@return string
 function Helper.getAfterIndex(str, index)
+    ---@diagnostic disable-next-line: undefined-field
     return str:sub(index + 1);
 end
 
@@ -169,6 +176,7 @@ end
 ---@param findPattern string
 ---@return string|nil
 function Helper.getBeforePattern(str, findPattern)
+    ---@diagnostic disable-next-line: undefined-field
     local startIndex = str:find(findPattern);
     if (startIndex == nil) then return nil; end
 
@@ -180,6 +188,7 @@ end
 ---@param findPattern string
 ---@return string|nil
 function Helper.getAfterPattern(str, findPattern)
+    ---@diagnostic disable-next-line: undefined-field
     local _, endIndex = str:find(findPattern);
     if (endIndex == nil) then return nil; end
 
@@ -205,6 +214,7 @@ end
 ---@return string|nil
 ---@return string|nil
 function Helper.splitPattern(str, findPattern)
+    ---@diagnostic disable-next-line: undefined-field
     local startIndex, endIndex = str:find(findPattern);
     if (startIndex == nil or endIndex == nil) then return nil; end
 

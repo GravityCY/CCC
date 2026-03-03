@@ -195,7 +195,7 @@ local function main()
                 if (homeMode or tempStats.moves ~= 0) then
                     turtle.turnRight();
                     turtle.turnRight();
-                    Tubby.dropAll(Sides.DOWN, function(item) return item.name ~= "minecraft:charcoal" and not hasTag(item, saplingsTag) end);
+                    Tubby.dropCB(Sides.DOWN, function(item) return item.name ~= "minecraft:charcoal" and not hasTag(item, saplingsTag) end);
                     Tubby.compactv2();
                     break;
                 end

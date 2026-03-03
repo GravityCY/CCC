@@ -53,16 +53,18 @@ end
 --- <b>Waits for an peripheral to be enabled.</b>
 ---@param name string
 ---@param description string|nil
----@return string
+---@return string?
 function EasyAddress.wait(name, description)
 
     --- <b>Before we block the thread, we need to clear the terminal, and print some info.</b>
     local function ui_waiting()
         term.clear();
         term.setCursorPos(1, 1)
+        ---@diagnostic disable-next-line: undefined-field
         print(("Please enable the peripheral '%s'..."):format(name));
         if (description) then
             print("Additional Information is Available:");
+        ---@diagnostic disable-next-line: undefined-field
             print(description:format(name));
         end
     end
@@ -87,6 +89,7 @@ function EasyAddress.wait(name, description)
             term.setCursorPos(1, ey);
             addr = addressList[index];
         end
+        ---@diagnostic disable-next-line: undefined-field
         print(("Are you sure you want to set the peripheral '%s' as '%s'? (y/n)"):format(addr, name));
         local confirm = read():lower();
         if (confirm == "y") then return true, addr; end
@@ -118,9 +121,11 @@ function EasyAddress.waitList(name, description, list)
 
     --- <b>Before we block the thread, we need to clear the terminal, and print some info.</b>
     local function onShowWaiting()
+        ---@diagnostic disable-next-line: undefined-field
         print(("Please enable a peripheral in the category of '%s'..."):format(name));
         if (description ~= nil) then
             print("Additional Information is Available:");
+        ---@diagnostic disable-next-line: undefined-field
             print(description:format(name));
         end
         Graphics.writePercent("Press Enter when done.", 1, 1);
@@ -162,6 +167,7 @@ function EasyAddress.waitList(name, description, list)
         while true do
             if (not pause) then
                 sleep(0.25);
+                ---@diagnostic disable-next-line: undefined-field
                 local event, key = os.pullEvent("key_up");
                 if (key == keys.enter) then
                     if (Ask.ask("Are you sure you want to exit? (y/n):", Ask.yesNo())) then
@@ -214,7 +220,9 @@ function EasyAddress.waitList(name, description, list)
             if (event == "peripheral") then
                 for index, addr in ipairs(filteredAddrs) do
                     if (not Table.contains(ret, addr)) then
+                        ---@diagnostic disable-next-line: redundant-parameter
                         speaker.playNote("harp", 1, 1);
+                        ---@diagnostic disable-next-line: undefined-field
                         print(("Added '%s' to '%s'"):format(addr, name));
                         Table.add(ret, addr);
                     end
@@ -222,7 +230,9 @@ function EasyAddress.waitList(name, description, list)
             elseif (event == "peripheral_detach") then
                 for index, addr in ipairs(filteredAddrs) do
                     if (Table.contains(ret, addr)) then
+                        ---@diagnostic disable-next-line: redundant-parameter
                         speaker.playNote("bass", 1, 12);
+                        ---@diagnostic disable-next-line: undefined-field
                         print(("Removed '%s' from '%s'"):format(addr, name));
                         Table.remove(ret, addr);
                     end

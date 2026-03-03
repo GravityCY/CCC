@@ -147,6 +147,7 @@ end
 
 function Tubby.getInventoryEvent()
     local previousState = Tubby.list();
+    ---@diagnostic disable-next-line: undefined-field
     os.pullEvent("turtle_inventory");
     local newState = Tubby.list();
     return diff(previousState, newState);

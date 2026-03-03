@@ -17,9 +17,11 @@ local Files = {};
 ---@param from string
 ---@param to string
 function Files.rename(from, to)
+    ---@diagnostic disable-next-line: undefined-field
     local isFormat = to:find("{.+}");
     if (isFormat ~= nil) then
         -- LOGGER.debug("User specified format: '%s'", to);
+    ---@diagnostic disable-next-line: undefined-field
         local formatString = to:match("{(.+)}");
 
         local first, last = Helper.splitPattern(to, "{.+}");

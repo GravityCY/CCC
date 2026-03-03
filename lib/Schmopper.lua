@@ -88,6 +88,7 @@ function Rule.Import()
         end
 
         sourceInventory:pushAmountPredicate(targetInventory, pull, nil, self.data.detailed, true, self.data.predicate);
+        return true;
     end
 
     --- Register to list of import rules
