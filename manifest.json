@@ -32,6 +32,7 @@
 "lib/Address.lua": true,
 "lib/Event.lua": true,
 "TODO.md": true,
+".vscode/settings.json": true,
 "data/language/easy_address/gr.json": true,
 "data/language/easy_address/en.json": true,
 "programs/furnace.lua": true,
