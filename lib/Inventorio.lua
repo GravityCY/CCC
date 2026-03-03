@@ -206,7 +206,7 @@ function Inventorio.new(obj)
 end
 
 --- <b>Push an item to another inventory.</b>
----@param toObj string|table def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
+---@param toObj string|table an Address `String` | a `Peripheral` object | an `Inventory` object.
 ---@param fromSlot integer The slot to transfer from
 ---@param toSlot integer? The slot to transfer to
 ---@param amount integer? The amount of items to transfer
@@ -221,21 +221,23 @@ function Inventorio:push(toObj, fromSlot, toSlot, amount)
 end
 
 --- <b>Push an item to another inventory.</b>
---- @param toAddr string|table|nil def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
+--- @param toAddr string|table an Address `String` | a `Peripheral` object | an `Inventory` object.
 --- @param itemName string The name of the item to push.
---- @param amount integer|nil def: `64` — The amount of items to transfer
---- @param toSlot integer|nil def: `1` — The slot to transfer to
-function Inventorio:pushName(toAddr, itemName, amount, toSlot)
-    return self:pushAmountPredicate(toAddr, toSlot, amount, false, Inventorio.Predicates.newItemNamePredicate(itemName))
+--- @param amount integer def: `64` — The amount of items to transfer
+--- @param toSlot integer? def: `1` — The slot to transfer to
+--- @param reverse boolean? def: `false` — If true, the items will be pushed in reverse order
+function Inventorio:pushName(toAddr, itemName, amount, toSlot, reverse)
+    return self:pushAmountPredicate(toAddr, amount, toSlot, false, reverse, Inventorio.Predicates.newItemNamePredicate(itemName))
 end
 
 --- <b>Push an item to another inventory.</b>
---- @param toAddr string|table|nil def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
+--- @param toAddr string|table an Address `String` | a `Peripheral` object | an `Inventory` object.
 --- @param itemTag string The name of the item to push.
---- @param amount integer|nil def: `64` — The amount of items to transfer
---- @param toSlot integer|nil def: `1` — The slot to transfer to
-function Inventorio:pushTag(toAddr, itemTag, amount, toSlot)
-    return self:pushAmountPredicate(toAddr, toSlot, amount, true, Inventorio.Predicates.newItemTagPredicate(itemTag));
+--- @param amount integer def: `64` — The amount of items to transfer
+--- @param toSlot integer? def: `1` — The slot to transfer to
+--- @param reverse boolean? def: `false` — If true, the items will be pushed in reverse order
+function Inventorio:pushTag(toAddr, itemTag, amount, toSlot, reverse)
+    return self:pushAmountPredicate(toAddr, amount, toSlot, true, reverse, Inventorio.Predicates.newItemTagPredicate(itemTag));
 end
 
 -- function Inventorio:pushNameMulti(toAddr, itemNames, amounts, toSlots)
@@ -270,16 +272,17 @@ end
 
 --- Push a specific amount of items into an inventory by predicate
 --- @param toAddr string|table The address to push items to.
----@param toSlot number|nil
----@param amount number|nil
----@param detail boolean|nil
+---@param amount number the amount to push
+---@param toSlot number? the slot to push to
+---@param detail boolean? def: `false`
+---@param reverse boolean? def: `false`
 ---@param itemPredicate ItemPredicate
 ---@return number pushed number of items succesfully pushed
-function Inventorio:pushAmountPredicate(toAddr, toSlot, amount, detail, itemPredicate)
+function Inventorio:pushAmountPredicate(toAddr, amount, toSlot, detail, reverse, itemPredicate)
     local remaining = amount or 1;
     -- LOGGER.debug("Pushing %d items into %s", remaining, toAddr);
 
-    return self:pushPredicate(toAddr, function(slot, item)
+    return self:pushPredicate(toAddr, detail, reverse, function(slot, item)
         if (itemPredicate(slot, item)) then
             -- LOGGER.debug("checking slot %d for %s", slot, item.name);
             if (remaining <= 0) then return false; end
@@ -289,22 +292,38 @@ function Inventorio:pushAmountPredicate(toAddr, toSlot, amount, detail, itemPred
             return true, pushAmount, toSlot;
         end
         return false;
-    end, detail);
+    end);
 end
 
 --- Pushes items from the inventory to a specified address based on a predicate.
 ---
 --- @param toAddr string|table The address to push items to.
+--- @param detail boolean? def: `false`
+--- @param reverse boolean? def: `false`
 --- @param predicate PushPredicate A function that takes an item and returns a boolean indicating whether the item is valid, the amount to push, and the slot to push to.
 --- @return number pushed number of items succesfully pushed
-function Inventorio:pushPredicate(toAddr, predicate, detail)
+function Inventorio:pushPredicate(toAddr, detail, reverse, predicate)
     if (detail == nil) then detail = false; end
+    if (reverse == nil) then reverse = false; end
 
     local pushed = 0;
-    for slot, item in pairs(self:getItems(detail)) do
-        local valid, amount, toSlot = predicate(slot, item);
-        if (valid) then
-            pushed = pushed + self:push(toAddr, slot, toSlot, amount);
+    if (reverse) then
+        local items = self:getItems(detail);
+        for slot = self:size(), 1, -1 do
+            local item = items[slot];
+            if (item ~= nil) then
+                local valid, amount, toSlot = predicate(slot, item);
+                if (valid) then
+                    pushed = pushed + self:push(toAddr, slot, toSlot, amount);
+                end
+            end
+        end
+    else
+        for slot, item in pairs(self:getItems(detail)) do
+            local valid, amount, toSlot = predicate(slot, item);
+            if (valid) then
+                pushed = pushed + self:push(toAddr, slot, toSlot, amount);
+            end
         end
     end
     return pushed;

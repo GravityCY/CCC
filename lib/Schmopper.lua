@@ -87,7 +87,7 @@ function Rule.Import()
             pull = self.data.upto - stored;
         end
 
-        sourceInventory:pushAmountPredicate(targetInventory, nil, pull, self.data.detailed, self.data.predicate);
+        sourceInventory:pushAmountPredicate(targetInventory, pull, nil, self.data.detailed, true, self.data.predicate);
     end
 
     --- Register to list of import rules
@@ -202,7 +202,7 @@ function Rule.Export()
                 percentageTotal = percentageTotal - percent;
                 tempPush = math.ceil(available * percent / 100);
             end
-            left = left - sourceInventory:pushAmountPredicate(targetInventory, nil, tempPush, self.data.detailed, self.data.predicate);
+            left = left - sourceInventory:pushAmountPredicate(targetInventory, tempPush, nil, self.data.detailed, true, self.data.predicate);
             if (left <= 0) then break end
         end
         return true;

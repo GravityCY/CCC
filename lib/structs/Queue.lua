@@ -18,7 +18,7 @@ function Queue.new()
     local self = {
         data = {
             ---@type Node
-            front = nil,
+            head = nil,
             ---@type Node
             rear = nil,
             ---@type number
@@ -32,8 +32,8 @@ end
 ---@param item T
 function Queue:enqueue(item)
     local node = newNode(item);
-    if (self.data.front == nil) then
-        self.data.front = node;
+    if (self.data.head == nil) then
+        self.data.head = node;
         self.data.rear = node;
     else
         self.data.rear.next = node;
@@ -45,14 +45,14 @@ end
 
 ---@return T|nil
 function Queue:dequeue()
-    if (self.data.front == nil) then return nil; end
+    if (self.data.head == nil) then return nil; end
 
-    local value = self.data.front.value;
+    local value = self.data.head.value;
 
-    self.data.front = self.data.front.next;
+    self.data.head = self.data.head.next;
     self.data.size = self.data.size - 1;
 
-    if (self.data.front == nil) then
+    if (self.data.head == nil) then
         self:clear();
     end
 
@@ -60,7 +60,7 @@ function Queue:dequeue()
 end
 
 function Queue:isEmpty()
-    return self.data.front == nil;
+    return self.data.head == nil;
 end
 
 function Queue:size()
@@ -68,7 +68,7 @@ function Queue:size()
 end
 
 function Queue:clear()
-    self.data.front = nil;
+    self.data.head = nil;
     self.data.rear = nil;
     self.data.size = 0;
 end
@@ -76,12 +76,12 @@ end
 function Queue:peek()
     if (self:isEmpty()) then return nil; end
 
-    return self.data.front.value;
+    return self.data.head.value;
 end
 
 function Queue:toArray()
     local arr = {};
-    local node = self.data.front;
+    local node = self.data.head;
     while (node ~= nil) do
         arr[#arr + 1] = node.value
         node = node.next;

@@ -80,6 +80,54 @@ local function getAnyItem(detail)
     end
 end
 
+---@param porter Porter
+local function porterFilterForm(porter)
+    local itemMember;
+    local predicate;
+    local filterType = Ask.choose("Item Filter: ", {byIndex={"By Name", "By Item Tag", "Any Item"}})
+    print();
+    if (filterType == 1) then
+        local itemName = Ask.ask("Item Name (blank to find): ", Ask.options():allowBlank(nil));
+        ---@cast itemName string
+    
+        if (itemName == nil) then
+            local item = getAnyItem();
+            if (item == nil) then
+                print("Couldn't find any item...");
+                return false;
+            end
+            itemName = item.name;
+        end
+    
+        predicate = Porter.PredicateRegistry.ITEM_NAME:create(itemName);
+        itemMember = itemName;
+    elseif (filterType == 2) then
+        local itemTag = Ask.ask("Item Tag (blank to find): ", Ask.options():allowBlank(nil));
+        ---@cast itemTag string
+    
+        if (itemTag == nil) then
+            local item = getAnyItem(true);
+            if (item == nil) then
+                print("Couldn't find any item...");
+                return;
+            end
+            if (item.tags == nil) then
+                print("Item doesn't have any item tags...");
+                return false;
+            end
+            local _, value = Ask.choose("Item Tags: ", {byKey=item.tags})
+            print();
+            itemTag = value;
+        end
+
+        predicate = Porter.PredicateRegistry.ITEM_TAG:create(itemTag);
+        itemMember = itemTag;
+    end
+    if (not Ask.ask(("Only allow items with name '%s' (y/n): "):format(itemMember), Ask.yesNo())) then return end
+    porter:filter(predicate);
+    return true;
+end
+
 ---@param args PeekableIterator<string>
 local function processorCmd(args)
     if (not args:hasNext()) then
@@ -270,45 +318,14 @@ local function importCmd(args)
     local cmd = args:next();
     if (cmd == "add") then
         local srcAddr = EasyAddress.wait("importer", "The inventory to import items from");
+        local srcInv = peripheral.wrap(srcAddr);
         local importer = Porter.Importer.new();
-        local filterType = Ask.choose("Item Filter: ", {byIndex={"By Name", "By Item Tag", "Any Item"}})
-        print();
-        if (filterType == 1) then
-            local itemName = Ask.ask("Enter Name (blank to find): ");
-            ---@cast itemName string
-        
-            if (itemName == "") then
-                local item = getAnyItem();
-                if (item == nil) then
-                    print("Couldn't find any item...");
-                    return;
-                end
-                itemName = item.name;
-            end
-        
-            if (not Ask.ask(("Import '%s' from %s? (y/n): "):format(itemName, srcAddr), Ask.yesNo())) then return end
-            importer:filter(Porter.PredicateRegistry.ITEM_NAME:create(itemName));
-        elseif (filterType == 2) then
-            local itemTag = Ask.ask("Enter Item Tag (blank to find): ");
-            ---@cast itemTag string
-        
-            if (itemTag == "") then
-                local item = getAnyItem(true);
-                if (item == nil) then
-                    print("Couldn't find any item...");
-                    return;
-                end
-                if (item.tags == nil) then
-                    print("That item doesn't have any item tags...");
-                    return;
-                end
-                local _, value = Ask.choose("Item Tags: ", {byKey=item.tags})
-                print();
-                itemTag = value;
-            end
-            if (not Ask.ask(("Import '%s' from %s? (y/n): "):format(itemTag, srcAddr), Ask.yesNo())) then return end
-            importer:filter(Porter.PredicateRegistry.ITEM_TAG:create(itemTag));
-        end
+        if (not porterFilterForm(importer)) then return end
+
+        local keep = Ask.ask("Keep in inventory (blank for none): ", Ask.num(0):allowBlank(0))
+        importer:keep(keep);
+        local slot = Ask.ask("Source slot (blank for any): ", Ask.num(1, srcInv.size()):allowBlank());
+        importer:slot(slot)
 
         AE69.registerImporter(srcAddr, importer);
         Helper.save(importsFilePath, AE69.Serializers.importers());
@@ -350,45 +367,16 @@ local function exportCmd(args)
     local cmd = args:next();
     if (cmd == "add") then
         local dstAddr = EasyAddress.wait("exporter", "The inventory to export items to");
+        local dstInv = peripheral.wrap(dstAddr);
         local exporter = Porter.Exporter.new();
-        local filterType = Ask.choose("Item Filter: ", {byIndex={"By Name", "By Item Tag", "Any Item"}})
-        print();
-        if (filterType == 1) then
-            local itemName = Ask.ask("Enter Name (blank to find): ");
-            ---@cast itemName string
-        
-            if (itemName == "") then
-                local item = getAnyItem();
-                if (item == nil) then
-                    print("Couldn't find any item...");
-                    return;
-                end
-                itemName = item.name;
-            end
-        
-            if (not Ask.ask(("Export '%s' to %s? (y/n): "):format(itemName, dstAddr), Ask.yesNo())) then return end
-            exporter:filter(Porter.PredicateRegistry.ITEM_NAME:create(itemName));
-        elseif (filterType == 2) then
-            local itemTag = Ask.ask("Enter Item Tag (blank to find): ");
-            ---@cast itemTag string
-        
-            if (itemTag == "") then
-                local item = getAnyItem(true);
-                if (item == nil) then
-                    print("Couldn't find any item...");
-                    return;
-                end
-                if (item.tags == nil) then
-                    print("That item doesn't have any item tags...");
-                    return;
-                end
-                local _, value = Ask.choose("Item Tags: ", {byKey=item.tags})
-                print();
-                itemTag = value;
-            end
-            if (not Ask.ask(("Export '%s' to %s? (y/n): "):format(itemTag, dstAddr), Ask.yesNo())) then return end
-            exporter:filter(Porter.PredicateRegistry.ITEM_TAG:create(itemTag));
-        end
+        if (not porterFilterForm(exporter)) then return end
+
+        local stock = Ask.ask("Export stock amount (blank for infinite): ", Ask.num(1):allowBlank(math.huge))
+        exporter:stock(stock);
+        local keep = Ask.ask("Keep in network (blank for none): ", Ask.num(0):allowBlank())
+        exporter:keep(keep);
+        local slot = Ask.ask("Output slot (blank for any): ", Ask.num(1, dstInv.size()):allowBlank());
+        exporter:slot(slot)
 
         AE69.registerExporter(dstAddr, exporter);
         Helper.save(exportsFilePath, AE69.Serializers.exporters());
@@ -396,7 +384,7 @@ local function exportCmd(args)
         AE69.pause(true);
         local exporters = AE69.getExporters();
         local addr = EasyAddress.wait("exporter to remove", "The exporter to remove");
-        if (exporters[addr] == nil) then 
+        if (exporters[addr] == nil) then
             print("That's not an exporter...");
             AE69.pause()
             return
@@ -405,13 +393,15 @@ local function exportCmd(args)
         print("Found valid Exporter: " .. addr);
         print("Item Filter: " .. exporters[addr].data.itemFilter.args[1]);
         
-        if (not Ask.ask("Sure? (y/n): ", Ask.yesNo())) then return end
+        if (not Ask.ask("Confirm (y/n): ", Ask.yesNo())) then return end
         AE69.removeExporter(addr);
         Helper.save(exportsFilePath, AE69.Serializers.exporters());
         AE69.pause();
     elseif (cmd == "list") then
         for addr, exporter in pairs(AE69.getExporters()) do
-            print(addr .. " (".. Identifier.getPrettyPath(exporter.data.itemFilter.args[1]) ..")");
+            local prettyAddr = Identifier.getPrettyPath(addr);
+            local prettyItem = Identifier.getPrettyPath(exporter.data.itemFilter.args[1]);
+            print(prettyAddr .. " (".. prettyItem ..")");
         end
     else
         print("Unknown command: " .. cmd, "Expected: add, remove, list");
@@ -423,6 +413,7 @@ local CMDI = CMDL.new();
 
 CMDI:command("processor", "modify processors", processorCmd);
 CMDI:command("recipe", "modify recipes", recipeCmd);
+CMDI:command("craft", "craft items", stockpileCmd);
 CMDI:command("stockpile", "modify stockpile data", stockpileCmd);
 CMDI:command("import", "import items from a specific inventory", importCmd);
 CMDI:command("export", "export items to a specific inventory", exportCmd);

@@ -83,16 +83,6 @@ function Helper.pullAny(...)
     end
 end
 
-function Helper.toString(tab, separator)
-    separator = Helper._def(separator, " ");
-
-    local ret = tab[1];
-    for i = 2, #tab do
-        ret = ret .. separator .. tab[i];
-    end
-    return ret;
-end
-
 --- <b>Execute a table of functions in batches</b>
 ---@param funcList function[]
 ---@param skipPartial? boolean Only do complete batches and skip the remainder.

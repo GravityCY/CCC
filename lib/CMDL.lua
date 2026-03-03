@@ -1,6 +1,7 @@
 local String = require("lib.String");
 local Table = require("lib.Table");
-local PeekableIterator = require("lib.PeekableIterator")
+local PeekableIterator = require("lib.structs.PeekableIterator")
+local Helper           = require("lib.Helper")
 
 ---@class CMDL
 local CMDL = {};
@@ -62,12 +63,13 @@ end
 ---@return any
 function CMDL:run(args)
     if (type(args) == "string") then args = String.split(args, "%s"); end
+    local argStr = Table.toString(args)
 
     local argIt = PeekableIterator.new(args);
 
     local cmdInp = argIt:next();
     local cmd = self.commands[cmdInp];
-    table.insert(self.history, cmdInp);
+    table.insert(self.history, argStr);
     if (#self.history > 10) then table.remove(self.history, 1); end
     if (cmd ~= nil) then
         return cmd:run(argIt);

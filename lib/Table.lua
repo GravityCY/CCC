@@ -1,5 +1,16 @@
-local Helper = require "lib.Helper"
+local Helper = require("lib.Helper");
+
 local Table = {};
+
+function Table.toString(tab, separator)
+    separator = separator or " ";
+
+    local ret = tostring(tab[1]);
+    for i = 2, #tab do
+        ret = ret .. separator .. tostring(tab[i]);
+    end
+    return ret;
+end
 
 --- Gets the difference between 2 tables
 ---@param tab1 any[]
@@ -20,7 +31,6 @@ function Table.diffIpairs(tab1, tab2, diffFn)
     ret.different = ret.sizeDiff ~= 0 or #ret.indexDiff ~= 0;
     return ret;
 end
-
 
 --- <b>Gets a range of a table.</b>
 ---@param tab any[]
@@ -141,6 +151,33 @@ end
 function Table.concat(tab1, tab2)
     for _, v in ipairs(tab2) do
         table.insert(tab1, v);
+    end
+end
+
+--- [1, 2, 3, 4] shift by 1
+--- [nil, 1, 3, 4]
+--- [nil, 1, 2, 4]
+--- [nil, 1, 2, 3]
+--- [4, 1, 2, 3]
+function Table.shift(tab, size, amount)
+    amount = amount % size;
+    if (amount == 0) then return end
+
+    local moved = 0;
+    local start = 1;
+    while (moved < size) do
+        local next = (start + amount - 1) % size + 1;
+        local prev = tab[start];
+        while (next ~= start) do
+            local temp = tab[next];
+            tab[next] = prev;
+            prev = temp;
+            next = (next + amount - 1) % size + 1;
+            moved = moved + 1;
+        end
+        tab[start] = prev;
+        moved = moved + 1;
+        start = start + 1;
     end
 end
 

@@ -51,8 +51,8 @@ while true do
             end
 
             for _, furnace in ipairs(furnaces) do
-                input:pushName(furnace, itemName, itemSplit, 1);
-                fuel:pushName(furnace, fuelName, fuelSplit, 2)
+                input:pushName(furnace, itemName, itemSplit, 1, true);
+                fuel:pushName(furnace, fuelName, fuelSplit, 2, true)
             end
 
             print("sleeping for " .. itemSplit * 10 .. " seconds till things are smelted...");

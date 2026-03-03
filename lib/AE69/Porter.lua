@@ -76,7 +76,7 @@ function Porter.new()
             ---@type number
             stock = math.huge,
             ---@type number
-            leave = 0
+            keep = 0
         }
     };
 
@@ -104,8 +104,8 @@ function Porter:stock(amount)
     return self;
 end
 
-function Porter:leave(amount)
-    self.data.leave = amount;
+function Porter:keep(amount)
+    self.data.keep = amount;
     return self;
 end
 
@@ -137,7 +137,7 @@ function Importer.deserialize(text)
         :filter(PorterPredicate.deserialize(obj.data.itemFilter))
         :slot(obj.data.slot)
         :stock(obj.data.stock)
-        :leave(obj.data.leave);
+        :keep(obj.data.keep);
 end
 
 function Importer:serialize(compact)
@@ -149,7 +149,7 @@ function Importer:serialize(compact)
             itemFilter = self.data.itemFilter and self.data.itemFilter:serialize(true);
             slot = self.data.slot;
             stock = self.data.stock;
-            leave = self.data.leave
+            keep = self.data.keep
         }
     }
 
@@ -175,20 +175,25 @@ function Importer:run(target)
     end
 
     local available = self.data.source:countPredicate(predicate, false);
-    if (available <= self.data.leave) then return end
-    available = available - self.data.leave;
+    if (available <= self.data.keep) then return end
+    available = available - self.data.keep;
 
-    local have = target:countPredicate(predicate, false);
-    local need = self.data.stock - have;
-    if (need <= 0) then return end
+
+    local take = available;
+    if (self.stock ~= math.huge) then
+        local have = target:countPredicate(predicate, false);
+        local need = self.data.stock - have;
+        if (need <= 0) then return end
+        take = math.min(take, need);
+    end
 
     if (self.data.slot ~= nil) then
         local items = self.data.source:getItems();
         if (predicate(self.data.slot, items[self.data.slot])) then
-            self.data.source:push(target, self.data.slot, nil, need);
+            self.data.source:push(target, self.data.slot, nil, math.min(take, 64));
         end
     else
-        self.data.source:pushAmountPredicate(target, nil, need, false, predicate);
+        self.data.source:pushAmountPredicate(target, take, nil, false, true, predicate);
     end
 end
 
@@ -213,7 +218,7 @@ function Exporter.deserialize(text)
         :filter(PorterPredicate.deserialize(obj.data.itemFilter))
         :slot(obj.data.slot)
         :stock(obj.data.stock)
-        :leave(obj.data.leave);
+        :keep(obj.data.keep);
 end
 
 function Exporter:serialize(compact)
@@ -225,7 +230,7 @@ function Exporter:serialize(compact)
             itemFilter = self.data.itemFilter and self.data.itemFilter:serialize(true);
             slot = self.data.slot;
             stock = self.data.stock;
-            leave = self.data.leave
+            keep = self.data.keep
         }
     }
 
@@ -241,10 +246,10 @@ end
 function Exporter:run(source)
     if (not self:shouldRun()) then return end
     local predicate = (self.data.itemFilter and self.data.itemFilter._cache) or Inventorio.Predicates.ALWAYS_TRUE;
-    local count = source:countPredicate(predicate, false);
+    local count = self.data.target:countPredicate(predicate, false);
     local need = self.data.stock - count;
     if (need <= 0) then return end
-    source:pushAmountPredicate(self.data.target, self.data.slot, need, false, predicate);
+    source:pushAmountPredicate(self.data.target, need, self.data.slot, false, true, predicate);
 end
 
 PorterLib.Importer = Importer;

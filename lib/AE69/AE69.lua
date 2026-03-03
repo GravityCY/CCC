@@ -1,7 +1,7 @@
 local Inventorio = require("lib.Inventorio");
 local Table = require("lib.Table");
 local Loggy = require("lib.Loggy");
-local Queue = require("lib.Queue");
+local Queue = require("lib.structs.Queue");
 local Event = require("lib.Event");
 local Helper= require("lib.Helper")
 
@@ -57,7 +57,7 @@ local processors = {};
 local stockpile = {};
 
 local taskManager = TaskManager.new();
-taskManager.taskQueues["__turtle-crafter__"] = Queue.new();
+taskManager:newQueue("__turtle-crafter__");
 
 local paused = false;
 
@@ -124,6 +124,7 @@ end
 local function craftShaped(recipe, recipeAmount)
     local recipeName = recipe.data.name;
     
+    --- TODO: craftMax could be a bug idek, I think it's good
     local craftingIterations = math.ceil(recipeAmount / recipe.data.outputAmount);
     local stackIterations = math.ceil(craftingIterations / recipe.data.craftMax);
     
@@ -133,11 +134,11 @@ local function craftShaped(recipe, recipeAmount)
     local craftsLeft = craftingIterations;
     for j = 1, stackIterations do
         LOGGER.debug("(Simple, Shaped) Pushing into turtle");
-        local craftsSplit = math.min(craftsLeft, 64);
+        local craftsSplit = math.min(craftsLeft, recipe.data.craftMax);
         for i = 1, 9 do
             local itemName = recipe.data.shape[i];
             if (itemName ~= nil) then
-                buffer:pushName(localName, itemName, craftsSplit, toTurtleSlot(i));
+                buffer:pushName(localName, itemName, craftsSplit, toTurtleSlot(i), true);
             end
         end
         
@@ -172,7 +173,7 @@ local function craftProcessor(recipe, recipeAmount)
 
     LOGGER.debug("(Simple, Shapeless) Pushing into processor '%s'", processor.input.peripheral.address.full);
     for name, amount in pairs(recipe.data.materials) do
-        buffer:pushName(processor.input, name, craftingIterations * amount);
+        buffer:pushName(processor.input, name, craftingIterations * amount, nil, true);
     end
 
     local left = recipeAmount;
@@ -185,7 +186,8 @@ local function craftProcessor(recipe, recipeAmount)
     return true;
 end
 
---- # Serializers
+--- # Create Serializable Objects
+
 ---@return string
 function AE69.Serializers.stockpiles()
     local objs = {};
@@ -263,7 +265,7 @@ function AE69.Serializers.buffers()
     return textutils.serialize(invs);
 end
 
---- # Deserializers
+--- # Create Normal Objects from Serialized Objects
 
 --- @param text? string
 --- @return SerializedStockpile[]?
@@ -345,7 +347,7 @@ function AE69.registerProcessor(id, inputAddr, outputAddr)
     assert(temp.output ~= nil, "nil output");
 
     processors[id] = temp;
-    taskManager.taskQueues[id] = Queue.new();
+    taskManager:newQueue(id);
 end
 
 ---@param sourceAddr string
@@ -441,6 +443,23 @@ function AE69.craftSimple(recipeName, recipeAmount)
     return true;
 end
 
+local function getMaterials(recipeName, recipeAmount, materials)
+    --TODO: IMPLEMENT
+    -- local recipe = recipes[recipeName];
+    -- if (recipe == nil) then materials
+
+end
+
+function AE69.getMaterials(recipeName, recipeAmount)
+    --TODO: IMPLEMENT
+    -- local materials = {};
+    -- while true do
+    --     for name, amount in pairs(node.data.materials) do
+    --         node = recipes[name];
+    --     end
+    -- end
+end
+
 ---@param recipeName string
 ---@param amount number
 ---@return boolean success, string|nil err
@@ -482,12 +501,17 @@ function AE69.learn(shaped, processorId)
     local shape = nil;
     local materials = nil;
     local output = nil;
+    local craftMax = 64;
+    local craftLimit = 1;
 
     if (shaped) then
         shape = {};
         for i = 1, 9 do
-            local item = turtle.getItemDetail(toTurtleSlot(i));
-            if (item ~= nil) then shape[i] = item.name; end
+            local item = turtle.getItemDetail(toTurtleSlot(i), true);
+            if (item ~= nil) then
+                shape[i] = item.name;
+                craftMax = math.min(craftMax, item.maxCount);
+            end
         end
     else
         materials = {};
@@ -498,14 +522,17 @@ function AE69.learn(shaped, processorId)
             end
         end
     end
+    
     output = turtle.getItemDetail(16, true)
     if (output == nil) then error("no output") end
+    craftMax = math.min(craftMax, output.maxCount);
 
     if (shaped) then
         ---@cast shape string[]
         return Recipe.new(output.name)
             :setShape(shape)
             :setOutputAmount(output.count)
+            :setCraftMax(craftMax)
             :setProcessor(processorId);
     else
         ---@cast materials table<string, number>

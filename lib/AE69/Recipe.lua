@@ -16,6 +16,7 @@ function Recipe.new(id)
             materials = {},
             outputAmount = 1,
             shaped = false,
+            ---@type number 
             craftMax = 64,
             ---@type table<string, number>
             leftovers = {}

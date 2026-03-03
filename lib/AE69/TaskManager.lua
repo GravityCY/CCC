@@ -1,4 +1,4 @@
-local Queue = require("lib.Queue");
+local Queue = require("lib.structs.Queue");
 
 local Task = {};
 Task.__index = Task;
@@ -52,6 +52,10 @@ end
 ---@param item string
 function TaskManager:getInFlight(item)
     return self.inFlight[item] or 0;
+end
+
+function TaskManager:newQueue(name)
+    self.taskQueues[name] = Queue.new();
 end
 
 ---@param task Task
