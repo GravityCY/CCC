@@ -218,8 +218,11 @@ local function main()
         local time = os.clock() - tempStats.startTime;
         term.clear();
         term.setCursorPos(1, 1);
+        ---@diagnostic disable-next-line: undefined-field
         print(("Hey I got %s logs during that run. Cool right?"):format(tempStats.logCount))
+        ---@diagnostic disable-next-line: undefined-field
         print(("It also took me %.2f seconds to get them, that's %.2f per second! Cool right?"):format(time, tempStats.logCount / time));
+        ---@diagnostic disable-next-line: undefined-field
         print(("I also travelled %d blocks, without me coming back home :)"):format(tempStats.moves));
         print("I'm gonna go to sleep now for 3 minutes. Nap time!")
         
