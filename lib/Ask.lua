@@ -127,7 +127,7 @@ end
 --- @param options? Options
 --- @return any
 function Ask.ask(question, options)
-    options = options or {};
+    options = options or Ask.options();
 
     local allowBlank = options.data.allowBlank or options.data.blankDefault ~= nil;
 

@@ -27,6 +27,8 @@ if (fuel == nil) then error("No fuel storage") end
 if (input == nil) then error("No input storage") end
 if (output == nil) then error("No output storage") end
 
+--- TODO: ROUND ROBIN MODE COMPARED TO JUST SYMMETRICAL SPLIT MODE
+
 while true do
     local itemName, itemCount = next(input:getTotals())
     local furnaceCount = #furnaces;
@@ -62,19 +64,8 @@ while true do
                 furnace:push(output, 3, nil, 64);
                 furnace:push(fuel, 2, nil, 64);
             end
-            print("Task done smelted", realItemCount, itemName);
-            print("Awaiting new task...");
         else
             print("Need at least", furnaceCount, " fuel to smelt ", itemCount);
-        end
-    else
-        local sleepTime = 5;
-        local cx, cy = term.getCursorPos();
-        for i = sleepTime, 1, -1 do
-            term.setCursorPos(1, cy);
-            term.clearLine();
-            term.write("Checking for new items in ".. i .. " seconds...");
-            sleep(1);
         end
     end
 end

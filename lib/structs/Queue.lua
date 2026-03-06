@@ -43,6 +43,21 @@ function Queue:enqueue(item)
     self.data.size = self.data.size + 1;
 end
 
+---@param other Queue
+function Queue:merge(other)
+    if (other.data.head == nil) then return end
+
+    if (self.data.head == nil) then
+        self.data.head = other.data.head
+        self.data.rear = other.data.rear
+    else
+        self.data.rear.next = other.data.head
+        self.data.rear = other.data.rear
+    end
+
+    self.data.size = self.data.size + other.data.size
+end
+
 ---@return T|nil
 function Queue:dequeue()
     if (self.data.head == nil) then return nil; end

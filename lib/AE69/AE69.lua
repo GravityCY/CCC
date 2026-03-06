@@ -36,9 +36,8 @@ AE69.OnCraftEnd = Event.new(false, false);
 ---@field input Inventorio
 ---@field output Inventorio
 
-local workbench = peripheral.find("workbench")
-local modem = peripheral.find("modem");
-local localName = modem.getNameLocal();
+local workbench = nil;
+local localName = nil;
 
 ---@type table<string, Recipe>
 local recipes = {};
@@ -57,8 +56,8 @@ local processors = {};
 ---@type table<string, number>
 local stockpile = {};
 
-local taskManager = TaskManager.new();
-taskManager:newQueue("__turtle-crafter__");
+local priorityTasks = TaskManager.new();
+local normalTasks = TaskManager.new();
 
 local paused = false;
 
@@ -73,29 +72,69 @@ local function toTurtleSlot(slot)
     return cy * 4 + cx + 1;
 end
 
+---@param recipe string
+---@param amount number
+---@return Request
+local function newRequest(recipe, amount)
+    ---@class Request
+    local self = {
+        recipe = recipe,
+        amount = amount
+    };
+    return self;
+end
+
+---@param tasks TaskManager?
+---@param totals table<string, number>
+---@param missing table<string, number>
+local function newTaskBuilderContext(tasks, totals, missing)
+    ---@class TaskBuilderContext
+    local self = {
+        tasks = tasks,
+        totals = totals,
+        missing = missing,
+    };
+
+    return self;
+end
+
+---@param itemName string
+---@param totals table<string, number>
+---@param tasks TaskManager
+local function getFutureTotal(itemName, totals, tasks)
+    local reserved = 0;
+    for _, tasksb in ipairs({tasks, normalTasks, priorityTasks}) do
+        reserved = reserved + tasksb:getReserved(itemName);
+    end
+
+    return math.max((totals[itemName] or 0) - reserved, 0);
+end
+
 ---@param recipeName string
 ---@param amount number
----@param parent Task|nil
----@param totals table<string, number>
-local function buildTasks(recipeName, amount, parent, totals)
+---@param ctx TaskBuilderContext
+---@param parent Task?
+local function buildTask(recipeName, amount, ctx, parent)
     local recipe = recipes[recipeName];
 
-    if (parent ~= nil and totals[recipeName] ~= nil) then
-        local available = totals[recipeName]
-        local used = math.min(available, amount)
-        totals[recipeName] = available - used
+    if (parent ~= nil and ctx.totals[recipeName] ~= nil) then
+        local available = TaskManager.getFutureStorage(recipeName, ctx.totals, ctx.tasks, normalTasks, priorityTasks);
+        local used = math.min(available, amount);
         amount = amount - used;
+        if (used > 0) then
+            LOGGER.debug("[BuildQueue] Reserving %d %s for %s", used, recipeName, parent.recipe.data.name);
+            ctx.tasks:updateReserved(parent, recipeName, used);
+        end
         if (amount <= 0) then
-            LOGGER.debug("(BuildQueue) %s is fully satisfied by storage cutting edge...", recipeName);
-            return
-        elseif (recipe == nil) then
-            error("Don't have enough of " .. recipeName .. ", need " .. amount ..".");
+            LOGGER.debug("[BuildQueue] %s is fully satisfied by storage cutting edge...", recipeName);
+            return;
         end
     end
 
     if (recipe == nil) then
-        LOGGER.debug("(buildTaskQueue) Missing recipe '%s'", recipeName);
-        return
+        ctx.missing[recipeName] = (ctx.missing[recipeName] or 0) + amount;
+        LOGGER.debug("[BuildQueue] Missing material %d '%s'", amount, recipeName);
+        return;
     end
 
     if (parent ~= nil) then
@@ -108,14 +147,15 @@ local function buildTasks(recipeName, amount, parent, totals)
     local task = Task.new(recipe, amount, parent, root, recipe.data.processorId);
     local craftIterations = math.ceil(amount / recipe.data.outputAmount);
     for materialName, need in pairs(recipe.data.materials) do
-        buildTasks(materialName, craftIterations * need, task, totals);
+        buildTask(materialName, craftIterations * need, ctx, task);
     end
 
-    if (task.dependencyCount == 0) then
+    if (ctx.tasks ~= nil and task.dependencyCount == 0) then
         if (recipe.data.shaped or recipe.data.processorId ~= nil) then
-            taskManager:queueTask(task);
+            LOGGER.debug("[BuildQueue] Queueing %d %s", amount, recipeName);
+            ctx.tasks:queueTask(task);
         else
-            error("unknown processor for recipe " .. recipeName);
+            error("[BuildQueue] unknown processor for recipe " .. recipeName);
         end
     end
 end
@@ -348,7 +388,8 @@ function AE69.registerProcessor(id, inputAddr, outputAddr)
     assert(temp.output ~= nil, "nil output");
 
     processors[id] = temp;
-    taskManager:newQueue(id);
+    priorityTasks:newQueue(id);
+    normalTasks:newQueue(id);
 end
 
 ---@param sourceAddr string
@@ -405,24 +446,24 @@ function AE69.removeExporter(targetAddr)
     exporters[targetAddr] = nil;
 end
 
---- Initializes AE3
----@param bufferAddr string
-function AE69.init(bufferAddr)
-    local temp = Inventorio.new(bufferAddr);
-    if (temp == nil) then error("Buffer is nil") end
-    buffer = temp;
-
-    workbench = peripheral.find("workbench")
-    modem = peripheral.find("modem");
-    localName = modem.getNameLocal();
-end
-
+--- Set the buffer inventories
 ---@param ... string address
-function AE69.buffer(...)
+function AE69.init(...)
     buffer = Inventorio.merge({...});
+    normalTasks:newQueue("__turtle-crafter__");
+    priorityTasks:newQueue("__turtle-crafter__");
+    
+    workbench = peripheral.find("workbench")
+    if (workbench == nil) then error("no connected crafting table..."); end
+
+    local modem = peripheral.find("modem");
+    if (modem == nil) then error("no connected modem..."); end
+
+    localName = modem.getNameLocal();
+    if (localName == nil or localName == "") then error("turtle needs to be connected..."); end
 end
 
---- Crafts a simple recipe 
+--- Crafts a recipe simply
 ---@param recipeName string
 ---@param recipeAmount number
 ---@return boolean
@@ -444,57 +485,92 @@ function AE69.craftSimple(recipeName, recipeAmount)
     return true;
 end
 
-local function getMaterials(recipeName, recipeAmount, materials)
-    --TODO: IMPLEMENT
-    -- local recipe = recipes[recipeName];
-    -- if (recipe == nil) then materials
-
+--- Calculates the missing materials for a recipe
+---@param recipeName string
+---@param recipeAmount number
+---@return table<string, number>
+function AE69.getMissing(recipeName, recipeAmount)
+    local missing = {};
+    buildTask(recipeName, recipeAmount, newTaskBuilderContext(TaskManager.new(), buffer:getTotals(), missing));
+    return missing;
 end
 
-function AE69.getMaterials(recipeName, recipeAmount)
-    --TODO: IMPLEMENT
-    -- local materials = {};
-    -- while true do
-    --     for name, amount in pairs(node.data.materials) do
-    --         node = recipes[name];
-    --     end
-    -- end
-end
-
+--- Builds a task queue
 ---@param recipeName string
 ---@param amount number
----@return boolean success, string|nil err
-function AE69.buildTasks(recipeName, amount)
+---@return TaskManager tasks, table<string, number> missing
+function AE69.buildTask(recipeName, amount)
     LOGGER.debug("Building task queue");
-    return pcall(buildTasks, recipeName, amount, buffer:getTotals());
+    local tasks = TaskManager.new();
+    local missing = {};
+    buildTask(recipeName, amount, newTaskBuilderContext(tasks, buffer:getTotals(), missing));
+    return tasks, missing;
 end
 
---- Crafts a recipe
+--- Queues a recipe
 ---@param recipeName string
 ---@param amount number
----@return boolean success, string|nil err
+---@return boolean success, table<string, number>? missing
 function AE69.queueRecipe(recipeName, amount)
     LOGGER.debug("Crafting '%s'", recipeName);
     AE69.OnCraftRoot:invoke(recipeName, amount);
-    return AE69.buildTasks(recipeName, amount);
-end
-
-function AE69.queueRecipes(recipeList, amountList)
-    local mutableTotals = buffer:getTotals()
-    for index, material in pairs(recipeList) do
-        local need = amountList[index];
-        LOGGER.debug("[craftAll] Queueing %d %s", need, material);
-        AE69.OnCraftRoot:invoke(material, need);
-        buildTasks(material, need, nil, mutableTotals);
-        -- local success, error = pcall(buildTaskQueue, material, need - count, nil, queueMap, mutableTotals);
-        -- if (not success) then
-        --     LOGGER.debug(error);
-        --     return false;
-        -- end
+    local tasks, missing = AE69.buildTask(recipeName, amount);
+    if (next(missing) ~= nil) then
+        return false, missing
     end
+
+    normalTasks:merge(tasks);
+    return true;
 end
 
---- learns a recipe from the turtles inventory
+--- Queues a recipe now
+---@param recipeName string
+---@param amount number
+---@return boolean success, table<string, number>? missing
+function AE69.queueRecipeNow(recipeName, amount)
+    LOGGER.debug("Crafting '%s' now", recipeName);
+    AE69.OnCraftRoot:invoke(recipeName, amount);
+    local tasks, missing = AE69.buildTask(recipeName, amount);
+    if (next(missing) ~= nil) then
+        LOGGER.debug("[QueueRecipeNow] had missing materials aborting...");
+        return false, missing
+    end
+
+    LOGGER.debug("[QueueRecipeNow] Merging to priority queue");
+    priorityTasks:merge(tasks);
+    return true;
+end                       
+
+--- Queues a list of recipes
+---@param requests Request[]
+---@return table<string, table<string, number>> recipeToMissing a map of recipeName -> a map of missing materials -> amount
+function AE69.queueRecipes(requests)
+    local totals = buffer:getTotals()
+
+    local totalMissings = {};
+    for index, request in ipairs(requests) do
+        local recipeName = request.recipe;
+        local need = request.amount;
+
+        local tasks = TaskManager.new();
+        local missing = {};
+        local craftTotals = Table.deepCopy(totals);
+        buildTask(recipeName, need, newTaskBuilderContext(tasks, craftTotals, missing));
+        if (next(missing) ~= nil) then
+            LOGGER.debug("[queueRecipes] Can't queue %d %s, don't have enough materials...", need, recipeName);
+            totalMissings[recipeName] = missing;
+        else
+            LOGGER.debug("[queueRecipes] Queueing %d %s", need, recipeName);
+            totals = craftTotals;
+            AE69.OnCraftRoot:invoke(recipeName, need);
+            normalTasks:merge(tasks);
+        end
+    end
+
+    return totalMissings
+end
+
+--- Learns a recipe from the turtles inventory
 ---@param shaped boolean
 ---@param processorId string
 ---@return Recipe
@@ -544,48 +620,57 @@ function AE69.learn(shaped, processorId)
     end
 end
 
+--- Polls for tasks and queues them
 function AE69.pollTasks()
     if (paused) then return end
 
-    local recipeList = {};
-    local amountList = {};
+    local requests = {};
 
     for material, need in pairs(stockpile) do
-        local stored = buffer:countName(material) + (taskManager:getInFlight(material));
+        local stored = buffer:countName(material) + (normalTasks:getInFlight(material));
         if (stored < need) then
-            recipeList[#recipeList + 1] = material;
-            amountList[#amountList + 1] = need - stored;
+            table.insert(requests, newRequest(material, need - stored));
         end
     end
 
-    AE69.queueRecipes(recipeList, amountList);
+    AE69.queueRecipes(requests);
 end
 
+--- Pauses mosts tasks
 function AE69.pause(set)
     if (set ~= nil) then paused = set;
     else paused = not paused; end
 end
 
+--- Get "threads" of each worker responsible for crafting
 function AE69.getTaskWorkers()
     local workers = {};
     -- AE69.OnRunTasks:invoke(taskMap);
-    for queueName, taskQueue in pairs(taskManager.taskQueues) do
+    for queueName, normalQueue in pairs(normalTasks.taskQueues) do
+        local priorityQueue = priorityTasks.taskQueues[queueName];
         workers[#workers + 1] = function()
-            while true do
-                while paused do sleep(1); end
+            LOGGER.debug("Running queue '%s'", queueName);
+            while (true) do
+                while (paused) do sleep(1); end
 
-                LOGGER.debug("Running queue '%s'", queueName);
-                local task = nil;
-                while true do
-                    task = taskQueue:dequeue();
-                    if (task ~= nil) then break end
+                local manager = priorityTasks;
+                local queue = priorityQueue;
+                if (priorityQueue:isEmpty()) then
+                    manager = normalTasks;
+                    queue = normalQueue;
+                end
+
+                local task = queue:dequeue();
+                if (task ~= nil) then
+                    ---@cast task Task
+                    LOGGER.debug("[%s] Executing task '%s', %d", queueName, task.recipe.data.name, 1);
+                    if (AE69.craftSimple(task.recipe.data.name, task.amount)) then
+                        manager:completeTask(task);
+                    end
+                else
                     sleep(1);
                 end
-                ---@cast task Task
-                LOGGER.debug("[%s] Executing task '%s', %d", queueName, task.recipe.data.name, 1);
-                if (AE69.craftSimple(task.recipe.data.name, task.amount)) then
-                    taskManager:completeTask(task);
-                end
+                
             end
         end
     end
@@ -593,6 +678,7 @@ function AE69.getTaskWorkers()
     return workers;
 end
 
+--- Get "threads" of each worker responsible for exporting and importing
 function AE69.getPorterWorkers()
     local workers = {};
 

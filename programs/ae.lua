@@ -69,7 +69,7 @@ local function setup()
         Helper.serialize(buffersFilePath, buffers);
     end
 
-    AE69.buffer(table.unpack(buffers));
+    AE69.init(table.unpack(buffers));
 end
 
 local function getAnyItem(detail)
@@ -421,19 +421,45 @@ local function exportCmd(args)
     end
 end
 
+---@param args PeekableIterator<string>
+local function craftCmd(args)
+    local name = args:next();
+    if (name == nil) then
+        name = Ask.ask("Enter item name: ");
+    end
+
+    local count = args:next();
+    if (count == nil) then
+        count = Ask.ask("Enter item count: ", Ask.num(1));
+    end
+
+    local success, missing = AE69.queueRecipeNow(name, count);
+    if (success) then
+        print("Crafting recipe: " .. name .. " x" .. count .. "...");
+    else
+        print("Failed to queue recipe: " .. name .. " x" .. count);
+        print("Missing Materials: ");
+        ---@cast missing table
+        for k, v in pairs(missing) do
+            print(k .. ": " .. v);
+        end
+    end
+end
+
 setup();
 local CMDI = CMDL.new();
 
 CMDI:command("processor", "modify processors", processorCmd);
 CMDI:command("recipe", "modify recipes", recipeCmd);
-CMDI:command("craft", "craft items", stockpileCmd);
 CMDI:command("stockpile", "modify stockpile data", stockpileCmd);
 CMDI:command("import", "import items from a specific inventory", importCmd);
 CMDI:command("export", "export items to a specific inventory", exportCmd);
+CMDI:command("craft", "craft items", craftCmd);
 --- TODO: implement below
-CMDI:command("cancraft", "check if you can craft a recipe", exportCmd);
 CMDI:command("materials", "get needed materials for recipe", exportCmd);
-CMDI:command("total", "get total items in buffer", exportCmd);
+CMDI:command("list", "list total items in storage", exportCmd);
+CMDI:command("get", "bring items from storage into turtle", exportCmd);
+CMDI:command("put", "put items from turtle into storage", exportCmd);
 
 local function commandThread()
     term.clear();
@@ -474,6 +500,5 @@ local function onCraftRoot(name, count)
 end
 
 AE69.OnCraftRoot:listen(onCraftRoot);
-
 
 parallel.waitForAny(commandThread, pollThread, taskThread);
