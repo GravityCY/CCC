@@ -82,7 +82,8 @@ function Inventorio.merge(addrs)
     local self = {};
 
     local invs = {};
-    local offsets = {};
+    local startOffsets = {};
+    local endOffsets = {};
     local mergedSize = 0;
 
     ---@param glSlot integer
@@ -90,18 +91,16 @@ function Inventorio.merge(addrs)
     local function toLocalSlot(glSlot)
         assert(glSlot >= 1 and glSlot <= mergedSize, "Slot out of range");
 
-        local totalOffset = 0;
         for i, inv in ipairs(invs) do
-            local offset = offsets[i];
-            if (glSlot <= totalOffset + offset) then return i, glSlot - totalOffset; end
-            totalOffset = totalOffset + offset;
+            local endOffset = endOffsets[i];
+            if (glSlot <= endOffset) then return i, glSlot - startOffsets[i]; end
         end
 
         return -1, -1;
     end
 
     local function toGlobalSlot(index, slot)
-        return offsets[index] + slot;
+        return startOffsets[index] + slot;
     end
 
     ---@param ... string
@@ -110,7 +109,8 @@ function Inventorio.merge(addrs)
             local inv = peripheral.wrap(addr);
             local size = inv.size();
             invs[#invs + 1] = inv;
-            offsets[#offsets+1] = size;
+            startOffsets[#startOffsets + 1] = mergedSize;
+            endOffsets[#endOffsets + 1] = (mergedSize or 0) + size;
             mergedSize = mergedSize + size;
         end
     end
@@ -122,16 +122,19 @@ function Inventorio.merge(addrs)
 
     ---@return table[]
     function self.list()
-        local list = {};
-        local totalOffset = 0;
+        local result = {};
+        local tasks = {};
+
         for i, inv in ipairs(invs) do
-            local offset = offsets[i];
-            for slot, item in pairs(inv.list()) do
-                list[totalOffset + slot] = item;
+            tasks[#tasks+1] = function()
+                for slot, item in pairs(inv.list()) do
+                    result[startOffsets[i] + slot] = item;
+                end
             end
-            totalOffset = totalOffset + offset;
         end
-        return list;
+        
+        Helper.batch(tasks, false, 64);
+        return result;
     end
 
     ---@param glSlot integer
@@ -140,11 +143,6 @@ function Inventorio.merge(addrs)
     function self.getItemDetail(glSlot, detail)
         local index, lcSlot = toLocalSlot(glSlot);
         return invs[index].getItemDetail(lcSlot, detail);
-    end
-
-
-    function self.pushIntoMe(fromInventory, fromSlot, amount, toSlot)
-
     end
 
     function self.pushItems(toAddr, fromSlot, amount, toSlot)

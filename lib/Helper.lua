@@ -89,23 +89,34 @@ function Helper.pullAny(...)
 end
 
 --- <b>Execute a table of functions in batches</b>
----@param funcList function[]
+---@param taskList function[]
 ---@param skipPartial? boolean Only do complete batches and skip the remainder.
 ---@return function[] skipped Functions that were skipped as they didn't fit.
-function Helper.batchExecute(funcList, skipPartial, limit)
+function Helper.batch(taskList, skipPartial, limit)
     if (skipPartial == nil) then skipPartial = false; end
     if (limit == nil) then limit = executeLimit; end
 
-    local batches = #funcList / limit
-    if (skipPartial) then batches = math.floor(batches);
-    else batches = math.ceil(batches); end
+    local totalTasks = #taskList;
+
+    local batches = 0;
+    if (skipPartial) then
+        batches = math.floor(totalTasks / limit);
+    else
+        batches = math.ceil(totalTasks / limit);
+    end
 
     for batch = 1, batches do
-      local start = ((batch - 1) * limit) + 1
-      local batch_end = math.min(start + limit - 1, #funcList)
-      parallel.waitForAll(table.unpack(funcList, start, batch_end))
+      local batchStart = (batch - 1) * limit + 1;
+      local batchEnd = math.min(batchStart + limit - 1, totalTasks)
+      parallel.waitForAll(table.unpack(taskList, batchStart, batchEnd))
     end
-    return {table.unpack(funcList, 1 + limit * batches)};
+
+    if (skipPartial) then
+        local skippedStart = batches * limit + 1;
+        return {table.unpack(taskList, skippedStart)}
+    end
+
+    return {};
 end
 
 --- <b>Wait for all functions to finish.</b>
