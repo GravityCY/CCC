@@ -133,12 +133,17 @@ function Importer.deserialize(text)
     local obj = textutils.unserialize(text);
     ---@cast obj SerializedImporter
 
-    return Importer.new()
+    local importer = Importer.new()
         :source(Inventorio.new(obj.data.source))
-        :filter(PorterPredicate.deserialize(obj.data.itemFilter))
         :slot(obj.data.slot)
         :stock(obj.data.stock)
         :keep(obj.data.keep);
+
+    if (obj.data.itemFilter ~= nil) then
+        importer:filter(PorterPredicate.deserialize(obj.data.itemFilter))
+    end
+
+    return importer;
 end
 
 function Importer:serialize(compact)
@@ -214,12 +219,17 @@ function Exporter.deserialize(text)
     local obj = textutils.unserialize(text);
     ---@cast obj SerializedExporter
 
-    return Exporter.new()
+    local exporter = Exporter.new()
         :target(Inventorio.new(obj.data.target))
-        :filter(PorterPredicate.deserialize(obj.data.itemFilter))
         :slot(obj.data.slot)
         :stock(obj.data.stock)
         :keep(obj.data.keep);
+
+    if (obj.data.itemFilter ~= nil) then
+        exporter:filter(PorterPredicate.deserialize(obj.data.itemFilter))
+    end
+
+    return exporter;
 end
 
 function Exporter:serialize(compact)

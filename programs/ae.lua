@@ -446,6 +446,12 @@ local function craftCmd(args)
     end
 end
 
+---@param args PeekableIterator<string>
+local function dumpCmd(args)
+--- TODO: implement dump
+    -- AE69.
+end
+
 setup();
 local CMDI = CMDL.new();
 
@@ -455,6 +461,7 @@ CMDI:command("stockpile", "modify stockpile data", stockpileCmd);
 CMDI:command("import", "import items from a specific inventory", importCmd);
 CMDI:command("export", "export items to a specific inventory", exportCmd);
 CMDI:command("craft", "craft items", craftCmd);
+CMDI:command("dump", "debug dump", dumpCmd);
 --- TODO: implement below
 CMDI:command("materials", "get needed materials for recipe", exportCmd);
 CMDI:command("list", "list total items in storage", exportCmd);

@@ -102,7 +102,7 @@ end
 function TaskManager:completeTask(task)
     -- AE69.OnTaskComplete:invoke(task, queueMap);
 
-    
+    self:freeReserved(task);
     if (self:completeRoot(task)) then return end
     -- LOGGER.debug("[%s] Task '%s' completed", task.processorId, task.recipe.data.name);
     task.parent.dependencyCount = task.parent.dependencyCount - 1;
