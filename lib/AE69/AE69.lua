@@ -179,11 +179,13 @@ local function craftShaped(recipe, recipeAmount)
         for i = 1, 9 do
             local itemName = recipe.data.shape[i];
             if (itemName ~= nil) then
+                ---@cast localName string
                 buffer:pushName(localName, itemName, craftsSplit, toTurtleSlot(i), true);
             end
         end
         
         LOGGER.debug("(Simple, Shaped) Crafting...");
+        ---@cast workbench table
         workbench.craft(craftsSplit);
 
         craftsLeft = craftsLeft - craftsSplit;
@@ -223,6 +225,16 @@ local function craftProcessor(recipe, recipeAmount)
         left = left - processor.output:pushName(buffer, recipeName, left)
         if (left <= 0) then break end
         sleep(0.5);
+    end
+
+    for name, amount in pairs(recipe.data.leftovers) do
+        local leftover = craftingIterations * amount;
+        LOGGER.debug("(Simple, Shapeless) Pulling out of processor '%s'", processor.output.peripheral.address.full);
+        while true do
+            leftover = leftover - processor.output:pushName(buffer, name, leftover)
+            if (leftover <= 0) then break end
+            sleep(0.5);
+        end
     end
     return true;
 end
@@ -578,6 +590,7 @@ function AE69.learn(shaped, processorId)
     local shape = nil;
     local materials = nil;
     local output = nil;
+    local leftovers = {};
     local craftMax = 64;
     local craftLimit = 1;
 
@@ -592,17 +605,25 @@ function AE69.learn(shaped, processorId)
         end
     else
         materials = {};
-        for i = 1, 15 do
+        for i = 1, 12 do
             local item = turtle.getItemDetail(i);
             if (item ~= nil) then
                 materials[item.name] = (materials[item.name] or 0) + item.count;
             end
         end
     end
-    
+
     output = turtle.getItemDetail(16, true)
     if (output == nil) then error("no output") end
     craftMax = math.min(craftMax, output.maxCount);
+
+    for i = 13, 15 do
+        local leftover = turtle.getItemDetail(i, true)
+        if (leftover ~= nil) then
+            leftovers[leftover.name] = leftover.count
+        end
+    end
+
 
     if (shaped) then
         ---@cast shape string[]
@@ -610,12 +631,14 @@ function AE69.learn(shaped, processorId)
             :setShape(shape)
             :setOutputAmount(output.count)
             :setCraftMax(craftMax)
+            :setLeftovers(leftovers)
             :setProcessor(processorId);
     else
         ---@cast materials table<string, number>
         return Recipe.new(output.name)
             :setMaterials(materials)
             :setOutputAmount(output.count)
+            :setLeftovers(leftovers)
             :setProcessor(processorId);
     end
 end
