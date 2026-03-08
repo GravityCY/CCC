@@ -191,6 +191,9 @@ function Inventorio.merge(addrs)
     return inventorio;
 end
 
+--- Creates a new Inventorio object.
+---@param obj string|table|nil def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
+---@return Inventorio
 function Inventorio.new(obj)
     local self = {};
     local inv = asInventory(obj);
@@ -200,6 +203,8 @@ function Inventorio.new(obj)
     ---@cast inv +Peripheral
 
     self.peripheral = inv;
+    self.cache = nil;
+    self.cacheDepth = 0;
     return setmetatable(self, Inventorio);
 end
 
@@ -238,36 +243,6 @@ function Inventorio:pushTag(toAddr, itemTag, amount, toSlot, reverse)
     return self:pushAmountPredicate(toAddr, amount, toSlot, true, reverse, Inventorio.Predicates.newItemTagPredicate(itemTag));
 end
 
--- function Inventorio:pushNameMulti(toAddr, itemNames, amounts, toSlots)
---     local itemMap = {};
---     for i = 1, #itemNames do
---         itemMap[itemNames[i]] = {amount=amounts[i], toSlot=toSlots[i]};
---     end
-
---     if (detail == nil) then detail = false; end
-
---     for slot, item in pairs(self:getItems(detail)) do
---         local mItem = itemMap[item.name];
---         if (mItem ~= nil) then
---             local pushAmount = math.min(mItem.amount, item.count);
---             mItem.amount = mItem.amount - self:push(toAddr, slot, mItem.toSlot, pushAmount);
---             if (mItem.amount <= 0) then return false; end
---         end
---     end
---     return pushed;
-
---     return self:pushPredicate(toAddr, function(slot, item)
---         local mItem = itemMap[item.name];
---         if (mItem ~= nil) then
---             if (mItem.amount <= 0) then return false; end
---             local pushAmount = math.min(mItem.amount, item.count);
---             mItem.amount = mItem.amount - pushAmount;
---             return true, pushAmount, mItem.toSlot;
---         end
---         return false;
---     end, false);
--- end
-
 --- Push a specific amount of items into an inventory by predicate
 --- @param toAddr string|table The address to push items to.
 ---@param amount number the amount to push
@@ -304,20 +279,21 @@ function Inventorio:pushPredicate(toAddr, detail, reverse, predicate)
     if (detail == nil) then detail = false; end
     if (reverse == nil) then reverse = false; end
 
-    local pushed = 0;
-    if (reverse) then
-        local items = self:getItems(detail);
-        for slot = self:size(), 1, -1 do
-            local item = items[slot];
-            if (item ~= nil) then
-                local valid, amount, toSlot = predicate(slot, item);
-                if (valid) then
-                    pushed = pushed + self:push(toAddr, slot, toSlot, amount);
-                end
-            end
-        end
+    local start = nil;
+    local finish = nil;
+    if (reverse) then 
+        start = self:size();
+        finish = 1;
     else
-        for slot, item in pairs(self:getItems(detail)) do
+        start = 1; 
+        finish = self:size();
+    end
+
+    local pushed = 0;
+    local items = self:getItems(detail);
+    for slot in Helper.iterate(start, finish) do
+        local item = items[slot];
+        if (item ~= nil) then
             local valid, amount, toSlot = predicate(slot, item);
             if (valid) then
                 pushed = pushed + self:push(toAddr, slot, toSlot, amount);
@@ -343,13 +319,13 @@ end
 ---@param itemName string
 ---@return boolean
 function Inventorio:containsName(itemName)
-    return self:containsCB(Inventorio.Predicates.newItemNamePredicate(itemName));
+    return self:containsPredicate(Inventorio.Predicates.newItemNamePredicate(itemName));
 end
 
 --- check if it contains a specific item
 ---@param predicate fun(slot: number, item: table): boolean
 ---@return boolean
-function Inventorio:containsCB(predicate)
+function Inventorio:containsPredicate(predicate)
     for slot, item in pairs(self:getItems()) do
         if (predicate(slot, item)) then return true; end
     end
@@ -371,10 +347,10 @@ function Inventorio:countTag(itemTag)
 end
 
 --- Count items by predicate
+---@param detail boolean? whether to include details
 ---@param predicate fun(slot: number, item: table): boolean
----@param detail boolean|nil whether to include details
 ---@return integer
-function Inventorio:countPredicate(predicate, detail)
+function Inventorio:countPredicate(detail, predicate)
     if (detail == nil) then detail = false; end
 
     local count = 0;
@@ -384,31 +360,52 @@ function Inventorio:countPredicate(predicate, detail)
     return count;
 end
 
---- find the first empty slot
+--- Find all empty slots
 ---@param reverse boolean if true `end->start`, if false `start->end`, default: `false`
----@return integer slot -1 if full
+---@return integer[] slots
 function Inventorio:findEmpty(reverse)
-    if (reverse == nil) then reverse = true; end
+    return self:findPredicate(false, reverse, true, function(item, slot) return item == nil; end);
+end
+
+--- Find items by name
+---@param reverse boolean if true `end->start`, if false `start->end`, default: `false`
+---@return integer[] slots
+function Inventorio:findName(name, reverse)
+    return self:findPredicate(false, reverse, false, Inventorio.Predicates.newItemNamePredicate(name));
+end
+
+--- Find items by tag
+---@param reverse boolean if true `end->start`, if false `start->end`, default: `false`
+---@return integer[] slots
+function Inventorio:findTag(tag, reverse)
+    return self:findPredicate(false, reverse, false, Inventorio.Predicates.newItemTagPredicate(tag));
+end
+
+function Inventorio:findPredicate(detail, reverse, allowNils, predicate)
+    if (detail == nil) then detail = false; end
+    if (reverse == nil) then reverse = false; end
+    if (allowNils == nil) then allowNils = false; end
 
     local start = nil;
-    if (reverse) then
-        start = self:size();
-    else
-        start = 1;
-    end
-
     local finish = nil;
     if (reverse) then
+        start = self:size();
         finish = 1;
     else
+        start = 1;
         finish = self:size();
     end
 
-    for i in Helper.iterate(start, finish) do
-        if (self:isEmptyAt(i)) then return i; end
+    local ret = {};
+    
+    local items = self:getItems();
+    for slot in Helper.iterate(start, finish) do
+        local item = items[slot];
+        local shouldTest = allowNils or item ~= nil;
+        if (shouldTest and predicate(item, slot)) then table.insert(ret, slot) end
     end
 
-    return -1;
+    return ret;
 end
 
 --- size of inventory
@@ -421,6 +418,12 @@ end
 ---@param detail boolean|nil include extra item data
 ---@return table[] items
 function Inventorio:getItems(detail)
+    if (self.cache ~= nil) then return self.cache; end
+
+    return self:getItemsRaw(detail);
+end
+
+function Inventorio:getItemsRaw(detail)
     if (detail == nil) then detail = false; end
 
     if (detail) then
@@ -440,6 +443,42 @@ function Inventorio:getItems(detail)
     return self.peripheral.list();
 end
 
+function Inventorio:cacheItems(detail)
+    self.cache = self:getItemsRaw(detail);
+    return self.cache;
+end
+
+--- Any item IO will use this cache.<br>
+--- <b>DOES NOT SIMULATE IO!<b>
+---@param enable boolean?
+---@param detail boolean?
+---@return table?
+function Inventorio:useCache(enable, detail, update)
+    if (enable == nil) then enable = false; end
+    if (detail == nil) then detail = false; end
+
+    if (not enable) then
+        self.cacheDepth = self.cacheDepth - 1;
+        assert(self.cacheDepth >= 0, "cacheDepth cannot be less than 0");
+
+        if (self.cacheDepth == 0) then
+            self.cache = nil;
+            return nil;
+        end
+        
+        if (update) then self:cacheItems(detail); end
+        return self.cache;
+    end
+
+    self.cacheDepth = self.cacheDepth + 1;
+
+    if (self.cacheDepth == 1) then
+        return self:cacheItems(detail);
+    end
+
+    return self.cache;
+end
+
 --- Gets a map of items to total counts
 ---@return table<string, number> totals a map of item names -> totals
 function Inventorio:getTotals()
@@ -452,7 +491,8 @@ function Inventorio:getTotals()
     return totals;
 end
 
---- get item at specific slot
+--- Get item at specific slot <br>
+--- Be careful about using this as it asks Minecraft for a new list every time +50ms
 ---@param slot number
 ---@return table
 function Inventorio:getAt(slot)
@@ -460,6 +500,7 @@ function Inventorio:getAt(slot)
 end
 
 --- <b>Returns whether the slot is empty.</b>
+--- Be careful about using this as it asks Minecraft for a new list every time +50ms
 ---@param slot integer
 ---@return boolean
 function Inventorio:isEmptyAt(slot)
@@ -475,29 +516,68 @@ end
 function Inventorio:swap(slotA, slotB)
     if (slotA == slotB) then return true; end
 
-    local emptyA, emptyB = self:isEmptyAt(slotA), self:isEmptyAt(slotB);
-    if (emptyA and emptyB) then return true; end
+    return self:runWithCache(false, true, function()
+        local emptyA, emptyB = self:isEmptyAt(slotA), self:isEmptyAt(slotB);
+        if (emptyA and emptyB) then return true; end
 
-    if (emptyA or emptyB) then
-        local nonEmpty = nil;
-        local empty = nil;
-        if (emptyA) then
-            nonEmpty = slotB;
-            empty = slotA;
+        if (emptyA or emptyB) then
+            local nonEmpty = nil;
+            local empty = nil;
+            if (emptyA) then
+                nonEmpty = slotB;
+                empty = slotA;
+            else
+                nonEmpty = slotA;
+                empty = slotB;
+            end
+            self:push(self.peripheral, nonEmpty, empty);
         else
-            nonEmpty = slotA;
-            empty = slotB;
+            local emptySlot = self:findEmpty(true)[1];
+            if (emptySlot == nil) then return false; end
+            self:push(self.peripheral, slotA, emptySlot);
+            self:push(self.peripheral, slotB, slotA);
+            self:push(self.peripheral, emptySlot, slotB);
         end
-        self:push(nil, nonEmpty, empty);
-    else
-        local emptySlot = self:findEmpty(true);
-        if (emptySlot == nil) then return false; end
-        self:push(nil, slotA, emptySlot);
-        self:push(nil, slotB, slotA);
-        self:push(nil, emptySlot, slotB);
-    end
 
-    return true;
+        return true;
+    end);
+end
+
+--- Run a bunch of Inventorio functions using the cache
+---@param detail boolean
+---@param updatesCache boolean
+---@param fn function
+---@param ... any
+---@return ... any
+function Inventorio:runWithCache(detail, updatesCache, fn, ...)
+    self:useCache(true, detail, updatesCache);
+    local args = {pcall(fn, ...)}
+    local ok = args[1];
+    self:useCache(false, detail, updatesCache)
+    if (not ok) then error(args[2]) end
+    return table.unpack(args, 2)
+end
+
+function Inventorio:getItemOrder(detail, reverse, predicate)
+    if (detail == nil) then detail = false end
+    if (reverse == nil) then reverse = false end
+    
+    local order = {};
+
+    local start, finish = 1, self:size();
+    if (reverse) then start, finish = finish, start; end
+
+    local items = self:getItems();
+    local position = 1;
+    for slot in Helper.iterate(start, finish) do
+        local item = items[slot];
+        if (predicate(item, slot)) then
+            order[#order+1] = position;
+        end
+
+        if (item ~= nil) then position = position + 1; end
+    end
+    return order;
 end
 
 return Inventorio;
