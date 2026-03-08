@@ -121,7 +121,7 @@ local function itemValidator(item)
     return item ~= nil;
 end
 
-local function diff(fromItems, toItems)
+local function getDiff(fromItems, toItems)
     local ret = {
         itemDiff = {},
         sizeDiff = 0,
@@ -150,7 +150,7 @@ function Tubby.getInventoryEvent()
     ---@diagnostic disable-next-line: undefined-field
     os.pullEvent("turtle_inventory");
     local newState = Tubby.list();
-    return diff(previousState, newState);
+    return getDiff(previousState, newState);
 end
 
 --- <b>Executes an action</b>
@@ -321,41 +321,54 @@ function Tubby.suck(side, count)
 end
 
 function Tubby.suckName(side, name, count)
-    return Tubby.suckCb(side, count, function(item, slot) return item.name == name end);
+    return Tubby.suckPredicate(side, count, function(item, slot) return item.name == name end);
 end
 
-function Tubby.suckCb(side, count, cb)
+function Tubby.suckPredicate(side, count, predicate)
     local p = Inventorio.new(Sides.toPeripheralName(side));
     if (p == nil) then return 0; end
-    local need = count;
 
-    local tempSlot = p:findEmpty(true);
-    if (tempSlot ~= nil) then p:swap(tempSlot, 1);
-    else return 0; end
+    return p:runWithCache(false, false, function()
+        local ready = false;
+        local need = count;
+        local order = 1;
+        for slot = 1, p:size() do
+            local item = p:getAt(slot);
+            if (item == nil) then goto continue; end
 
+            if (predicate(item, slot)) then
+                local target = slot;
+                if (order ~= 1) then
+                    if (not ready) then
+                        local emptySlot = p:findEmpty(true)[1];
+                        if (emptySlot == nil) then break end
+                        p:swap(1, emptySlot);
+                        ready = true;
+                    end
+                    p:swap(slot, 1);
+                    target = 1;
+                end
 
-    -- TODO: THIS DOESNT WORK CLEANLY WITH THE COUNT NUMBER BECAUSE THE TURTLE DOESNT KNOW HOW MUCH IT SUCKED
-    while true do
-        local targetSlot = -1;
-        for slot, item in pairs(p:getItems()) do
-            if (cb(item, slot)) then
-                targetSlot = slot;
-                break;
+                local preItem = p:getAt(target);
+                if (Tubby.suck(side, math.min(need, 64))) then
+                    p:cacheItems(false);
+                    local postItem = p:getAt(target);
+                    local diff = 0;
+                    if (postItem == nil) then diff = preItem.count;
+                    else diff = preItem.count - postItem.count; end
+
+                    need = need - diff;
+                    if (need <= 0) then break end
+                else break end
+            else
+                order = order + 1;
             end
-        end
 
-        if (targetSlot == -1) then break end
-        if (p:swap(targetSlot, 1)) then
-            local suckAmount = math.min(math.max(need, 1), 64)
-            if (Tubby.suck(side, suckAmount)) then
-                need = need - suckAmount;
-            end
+            ::continue::
         end
-        if (need <= 0) then break end
-    end
-
-    p:swap(tempSlot, 1);
-    return need;
+    
+        return count - need;
+    end);
 end
 
 --- <b>Sucks all items</b> <br>
@@ -382,19 +395,21 @@ end
 ---@param side number
 ---@return table slots A table of all the dropped slots.
 function Tubby.dropAll(side)
-    return Tubby.dropCB(side, function(item, slot) return true; end)
+    return Tubby.dropPredicate(side, function(item, slot) return true; end)
 end
 
 --- <b>Drops all items</b> <br>
 --- Drops all items in the turtles inventory, and returns which slots it dropped.
 --- @param side number
---- @param cb function(item, slot) A function that will return true if the item should be dropped.
+--- @param detail boolean
+--- @param predicate function(item, slot) A function that will return true if the item should be dropped.
 --- @return table dropped A table of all the dropped items.
-function Tubby.dropCB(side, cb)
+function Tubby.dropPredicate(side, detail, predicate)
     local dropped = {};
+    local items = Tubby.list(detail);
     for slot = 1, 16 do
-        local item = turtle.getItemDetail(slot);
-        if (item ~= nil and cb(item, slot)) then
+        local item = items[slot];
+        if (item ~= nil and predicate(item, slot)) then
             turtle.select(slot);
             Tubby.drop(side);
             table.insert(dropped, {slot=slot, item=item});
@@ -485,37 +500,21 @@ end
 ---@param detail boolean|nil If true, will return the full item details (takes 50ms)
 ---@return table
 function Tubby.list(detail)
-    return Tubby.listCB(detail, function(slot, item) return true; end);
-end
-
---- <b>Lists all Items in the turtles inventory</b> <br>
---- Given a callback function, will only return items that return true from the callback
----@param detail boolean|nil If true, will return the full item details (takes 50ms)
----@param cb function
----@return table
-function Tubby.listCB(detail, cb)
-    detail = _def(detail, false);
+    if (detail == nil) then detail = false end
 
     local items = {};
-    if (detail) then
-        local fns = {};
-        for slot = 1, 16 do
-            fns[slot] = function()
-                local item = turtle.getItemDetail(slot, true);
-                if (item ~= nil and cb(slot, item)) then
-                    items[slot] = item;
-                end
-            end
-        end
-        parallel.waitForAll(table.unpack(fns));
-    else
-        for slot = 1, 16 do
-            local item = turtle.getItemDetail(slot);
-            if (item ~= nil and cb(slot, item)) then
+
+    local tasks = {};
+    for slot = 1, 16 do
+        tasks[slot] = function()
+            local item = turtle.getItemDetail(slot, detail);
+            if (item ~= nil) then
                 items[slot] = item;
             end
         end
     end
+    parallel.waitForAll(table.unpack(tasks));
+
     return items;
 end
 
@@ -532,42 +531,53 @@ end
 ---@param slot any The slot to select
 ---@return integer slot The selected slot or -1 if invalid
 function Tubby.select(slot)
-    if (slot < 0 or slot > 16) then return -1; end
+    assert(slot >= 1 and slot <= 16, "Slot must be between 1 and 16");
     if (slot == turtle.getSelectedSlot()) then return slot; end
 
     turtle.select(slot);
     return slot;
 end
 
-function Tubby.tempSelect(slot)
-    if (prevSlot ~= nil) then
-        turtle.select(prevSlot);
-        prevSlot = nil;
-        return;
-    end
-    
+function Tubby.selectTemp(slot)   
     prevSlot = turtle.getSelectedSlot();
     if (slot ~= nil) then turtle.select(slot); end
 end
 
+function Tubby.revertTemp()
+    if (prevSlot == nil) then return false; end
+
+    turtle.select(prevSlot);
+    prevSlot = nil;
+    return true;
+end
+
 function Tubby.selectEmpty()
-    return Tubby.select(Tubby.findEmptySlot());
+    local slot = Tubby.findEmpty()[1];
+    if (slot == nil) then return -1; end
+
+    return Tubby.select(slot);
 end
 
 --- <b>Selects an Item by Name</b>
 ---@param itemName string Name of the item. eg. "minecraft:stick"
 ---@return number slot
 function Tubby.selectName(itemName)
-    return Tubby.select(Tubby.findItemName(itemName));
+    local slot = Tubby.findItemName(itemName)[1];
+    if (slot == nil) then return -1; end
+
+    return Tubby.select(slot);
 end
 
 --- <b>Finds an item by callback</b> <br>
 --- Given a function that accepts as arguments, an item object, and a slot number,
 --- selects an item that the function returns true
----@param cb function Function that receives as arguments, an item object, and a slot number; returns boolean. 
+---@param predicate function Function that receives as arguments, an item object, and a slot number; returns boolean. 
 ---@return number slot
-function Tubby.selectCB(cb)
-    return Tubby.select(Tubby.findItemPredicate(cb));
+function Tubby.selectPredicate(detail, allowNils, predicate)
+    local slot = Tubby.findItemPredicate(detail, allowNils, predicate)[1];
+    if (slot == nil) then return -1; end
+
+    return Tubby.select(slot);
 end
 
 --- <b>Find any non-null item</b>
@@ -576,44 +586,52 @@ function Tubby.findAny()
     return Tubby.findItemPredicate(function(item, slot) return true end);
 end
 
---- <b>Find an empty slot</b>
----@return integer|nil slot The slot of the empty slot or -1
-function Tubby.findEmptySlot()
-    return Tubby.findItemPredicate(function(item, slot) return item == nil end, true);
+--- <b>Find emptyA slots</b>
+---@return integer[] slot The slots
+function Tubby.findEmpty()
+    return Tubby.findItemPredicate(false, true, function(item, slot) return item == nil end);
 end
 
 --- <b>Find any item by Name</b>
 ---@param itemName string Name of the item. eg. "minecraft:stick"
----@return integer|nil slot The slot of the item
+---@return integer[] slots
 function Tubby.findItemName(itemName)
-    return Tubby.findItemPredicate(function(item, slot) return item.name == itemName end);
+    return Tubby.findItemPredicate(false, false, function(item, slot) return item.name == itemName end);
 end
 
+--- <b>Find any item by Name</b>
+---@param itemTag string Tag of the item. eg. "minecraft:sticks"
+---@return integer[] slots
 function Tubby.findItemTag(itemTag)
-    return Tubby.findItemPredicate(function(item, slot, detail) return detail().tags[itemTag] ~= nil end);
+    return Tubby.findItemPredicate(true, false, function(item, slot) return item.tags[itemTag] ~= nil end);
 end
 
---- <b>Find an item by callback</b> <br>
+--- <b>Find an item by predicate</b> <br>
 --- Given a function that accepts as arguments, an item object, and a slot number,
 --- returns a slot number that the function returns as true.
+---@param detail? boolean If true, will return the full item details
+---@param allowNils? boolean If true, will allow nil items
 ---@param predicate function Function that receives as arguments, an item object, a slot number, and a function to request the item with more detail; returns boolean.
----@return integer|nil slot
-function Tubby.findItemPredicate(predicate, allowNils)
+---@return integer[] slots
+function Tubby.findItemPredicate(detail, allowNils, predicate)
+    if (detail == nil) then detail = false; end
     if (allowNils == nil) then allowNils = false; end
 
-    local function detail(slot)
-        return function()
-            return turtle.getItemDetail(slot, true);
+    local out = {};
+    local tasks = {};
+
+    for slot = 1, 16 do
+        tasks[#tasks+1] = function()
+            local item = turtle.getItemDetail(slot, detail);
+            local shouldTest = allowNils or item ~= nil;
+
+            if (shouldTest and predicate(item, slot)) then table.insert(out, slot); end
         end
     end
 
-    for slot = 1, 16 do
-        local item = turtle.getItemDetail(slot);
-        if (allowNils and predicate(item, slot)) then return slot; end
-        if (not allowNils and item ~= nil and predicate(item, slot, detail(slot))) then return slot; end
-    end
+    parallel.waitForAll(table.unpack(tasks));
 
-    return -1;
+    return out;
 end
 
 function Tubby.hasFreeSlots()
