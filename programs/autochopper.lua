@@ -1,3 +1,4 @@
+local Automata = require("lib.Turtlematic.Automata");
 local Tubby = require("lib.Tubby");
 local Sides = require("lib.Sides");
 local Std = require("lib.Std");
@@ -44,8 +45,8 @@ local function hasTag(obj, tag)
 end
 
 local function placeSapling()
-    local slot = Tubby.findItemTag(saplingsTag);
-    if (slot == -1) then return false; end
+    local slot = Tubby.findItemTag(saplingsTag)[1];
+    if (slot == nil) then return false; end
     local originalSlot = turtle.getSelectedSlot();
     turtle.select(slot);
     turtle.placeDown();
@@ -143,23 +144,14 @@ local function hasEnoughFuel(distance)
     return turtle.getFuelLevel() > distance;
 end
 
-local function refuel()
-    local slot = Tubby.findItemName("minecraft:charcoal");
-    if (slot == -1) then return false; end
-    Tubby.tempSelect(slot);
-    local success = turtle.refuel(64);
-    Tubby.tempSelect()
-    return success;
-end
-
 local function saveStats()
 
 end
 
 local function main()
     while true do
-        local homeMode = false;
-        
+        local isHomeMode = false;
+
         local tempStats = {
             moves = 0,
             logCount = 0,
@@ -167,36 +159,40 @@ local function main()
             startTime = os.clock()
         }
 
+        local i = 0;
         while true do
-            if (not hasEnoughFuel(tempStats.moves) and not refuel()) then
-                homeMode = true;
+            if (not hasEnoughFuel(tempStats.moves)) then
+                isHomeMode = true;
                 turtle.turnRight();
                 turtle.turnRight();
             end
 
             local action = getAction();
             if (action == Actions.TURN_LEFT) then
-                if (homeMode) then
+                if (isHomeMode) then
                     turtle.turnRight();
                 else
                     turtle.turnLeft();
                 end
             elseif (action == Actions.TURN_RIGHT) then
-                if (homeMode) then
+                if (isHomeMode) then
                     turtle.turnLeft();
                 else
                     turtle.turnRight();
                 end
             elseif (action == Actions.GO_HOME) then
-                homeMode = true;
+                isHomeMode = true;
                 turtle.turnRight();
                 turtle.turnRight();
             elseif (action == Actions.END) then
-                if (homeMode or tempStats.moves ~= 0) then
-                    turtle.turnRight();
-                    turtle.turnRight();
-                    Tubby.dropCB(Sides.DOWN, function(item) return item.name ~= "minecraft:charcoal" and not hasTag(item, saplingsTag) end);
-                    Tubby.compactv2();
+                if (isHomeMode or tempStats.moves ~= 0) then
+                    Tubby.turn(Sides.BACK);
+                    Tubby.dropPredicate(Sides.DOWN, true, function(item) return not hasTag(item, saplingsTag) end);
+                    Tubby.select(1);
+                    Tubby.suckName(Sides.DOWN, "minecraft:charcoal", 64);
+                    Tubby.selectName("minecraft:charcoal");
+                    turtle.refuel(64);
+                    Tubby.dropPredicate(Sides.DOWN, true, function(item) return not hasTag(item, saplingsTag) end);
                     break;
                 end
             end
@@ -209,10 +205,15 @@ local function main()
                     tempStats.replants = tempStats.replants + ((replanted and 1) or (replanted or 0));
                 else turtle.dig(); end
             end
+            if (Automata ~= nil) then
+                local scanSize = (Automata.getConfiguration("maxRadius") + 1) * 2;
+                if (i % scanSize == 0) then Automata.suck(64); end
+            end
             turtle.forward();
-            if (not homeMode) then
+            if (not isHomeMode) then
                 tempStats.moves = tempStats.moves + 1;
             end
+            i = i + 1;
         end
 
         local time = os.clock() - tempStats.startTime;
