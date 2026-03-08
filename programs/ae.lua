@@ -359,7 +359,13 @@ local function importCmd(args)
         AE69.pause();
     elseif (cmd == "list") then
         for addr, importer in pairs(AE69.getImporters()) do
-            print(addr .. " (".. Identifier.getPrettyPath(importer.data.itemFilter.args[1]) ..")");
+            local name = "";
+            if (importer.data.itemFilter ~= nil) then
+                name = " ("..Identifier.getPrettyPath(importer.data.itemFilter.args[1])..")";
+            else
+                name = " (any)";
+            end
+            print(addr .. name);
         end
     else
         print("Unknown command: " .. cmd, "Expected: add, remove, list");
