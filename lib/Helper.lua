@@ -242,6 +242,7 @@ function Helper.iterate(from, to)
     local up = from < to;
     local delta = Helper._if(up, 1, -1);
     local endIndex = Helper._if(up, to + 1, to - 1);
+    
     return function()
         if (index == endIndex) then return nil; end
 
@@ -350,7 +351,8 @@ function Helper._def(value, defValue)
     return value;
 end
 
---- <b>Simplified if else statement.</b>
+--- <b>Simplified if else statement.</b> <br>
+--- Each expression will be executed. So use only for simple if elses
 ---@param exp boolean
 ---@param a any
 ---@param b any

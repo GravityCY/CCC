@@ -82,7 +82,7 @@ function Rule.Import()
         local pull = math.huge;
 
         if (self.data.upto ~= nil) then
-            local stored = targetInventory:countPredicate(self.data.predicate, self.data.detailed);
+            local stored = targetInventory:countPredicate(self.data.detailed, false, self.data.predicate);
             if (stored >= self.data.upto) then return false; end
             pull = self.data.upto - stored;
         end
