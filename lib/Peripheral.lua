@@ -130,6 +130,36 @@ function Peripheral.firstType(targetType)
     end
 end
 
+function Peripheral.firstByPredicate(predicate)
+    for _, name in pairs(peripheral.getNames()) do
+        local p = peripheral.wrap(name);
+        if (predicate(p)) then
+            return Peripheral.wrap(p);
+        end
+    end
+end
+
+function Peripheral.findByPredicate(predicate)
+    local out = {};
+
+    for _, name in pairs(peripheral.getNames()) do
+        local p = peripheral.wrap(name);
+        if (predicate(p)) then
+            table.insert(out, Peripheral.wrap(p));
+        end
+    end
+
+    return out;
+end
+
+function Peripheral.findByKey(key)
+    for _, periph in pairs(peripheral.getNames()) do
+        if (peripheral.hasMethod(periph, key) ~= nil) then
+            return Peripheral.wrap(peripheral.wrap(periph));
+        end
+    end
+end
+
 --- Get the first peripheral of the given name.
 ---@param name string
 function Peripheral.first(name)
