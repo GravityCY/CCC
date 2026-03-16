@@ -3,6 +3,7 @@
 --- Version: 0.2.0
 
 local Address = {};
+local AddressInstance = {};
 
 local sideMap = {
     ["front"]   = true,
@@ -14,7 +15,7 @@ local sideMap = {
 }
 
 function Address.equals(a, b)
-    return a.full == b.full;
+    return getmetatable(a) == getmetatable(b) and a.full == b.full;
 end
 
 ---@param address string
@@ -36,26 +37,18 @@ function Address.getIndex(address)
 end
 
 ---@param full string
+---@return Address
 function Address.new(full)
-    local self = {};
-    self.full = full;
-    self.namespace = Address.getNamespace(full);
-    self.type = Address.getType(full);
-    self.index = Address.getIndex(full);
+    ---@class Address
+    local self = {
+        full = full;
+        namespace = Address.getNamespace(full);
+        type = Address.getType(full);
+        index = Address.getIndex(full);
+        isSide = sideMap[full] ~= nil;
+    };
 
-    function self.isSide()
-        return sideMap[self.full] ~= nil;
-    end
-
-    function self.equals(other)
-        return Address.equals(self, other);
-    end
-
-    function self.tostring()
-        return self.full;
-    end
-
-    return self;
+    return setmetatable(self, AddressInstance);
 end
 
 return Address;
