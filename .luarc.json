@@ -36,5 +36,16 @@
         "bit",
         "string",
         "package"
-    ]
+    ],
+    "Lua.workspace.library": [
+        "${addons}/cc-tweaked/module/library",
+        "E:/Backup/FixPartition/My Stuff/Code/Lua/Addons/CC",
+        "E:/Backup/FixPartition/My Stuff/Code/Lua/Addons/Turtlematic"
+    ],
+    "Lua.runtime.version": "Lua 5.3",
+    "Lua.workspace.checkThirdParty": false,
+    "Lua.runtime.builtin": {
+        "io": "disable",
+        "os": "disable"
+    }
 }
