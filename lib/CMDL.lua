@@ -3,8 +3,9 @@ local Table = require("lib.Table");
 local PeekableIterator = require("lib.structs.PeekableIterator")
 local Helper           = require("lib.Helper")
 
+local CMDLLib = {};
 ---@class CMDL
-local CMDL = {};
+local CMDLInstance = {};
 ---@class Command
 local Command = {};
 
@@ -13,26 +14,29 @@ function Command:run(argIt)
     return self.fn(argIt);
 end
 
-function CMDL.new()
+function CMDLLib.new()
     ---@class CMDL
     local self = {
-        commands = {};
-        history = {};
+        data = {
+            commands = {};
+            history = {};
+        }
     };
 
-    CMDL.command(self, "help", "helps you with with other commands", function(argIt) self:help(argIt:next()) end)
+    self = setmetatable(self, {__index = CMDLInstance});
+    self:command("help", "helps you with with other commands", function(argIt) self:help(argIt:next()) end)
 
-    return setmetatable(self, {__index = CMDL});
+    return self;
 end
 
-function CMDL:getHistory()
-    return self.history;
+function CMDLInstance:getHistory()
+    return self.data.history;
 end
 
 ---@param name string
 ---@param description string
 ---@param fn fun(argIt: PeekableIterator<string>): any
-function CMDL:command(name, description, fn)
+function CMDLInstance:command(name, description, fn)
     ---@class Command
     local command = {
         name = name;
@@ -40,16 +44,16 @@ function CMDL:command(name, description, fn)
         fn = fn;
     };
 
-    self.commands[name] = setmetatable(command, {__index = Command});
+    self.data.commands[name] = setmetatable(command, {__index = Command});
 end
 
-function CMDL:help(commandName)
+function CMDLInstance:help(commandName)
     if (commandName == nil or commandName == "") then
-        for name, cmd in pairs(self.commands) do self:help(name); end
+        for name, cmd in pairs(self.data.commands) do self:help(name); end
         return;
     end
 
-    local command = self.commands[commandName];
+    local command = self.data.commands[commandName];
     if (command == nil) then
         print("Unknown command: " .. commandName);
         return;
@@ -61,16 +65,16 @@ end
 --- Runs a command
 ---@param args string|table
 ---@return any
-function CMDL:run(args)
+function CMDLInstance:run(args)
     if (type(args) == "string") then args = String.split(args, "%s"); end
     local argStr = Table.toString(args)
 
     local argIt = PeekableIterator.new(args);
 
     local cmdInp = argIt:next();
-    local cmd = self.commands[cmdInp];
-    table.insert(self.history, argStr);
-    if (#self.history > 10) then table.remove(self.history, 1); end
+    local cmd = self.data.commands[cmdInp];
+    table.insert(self.data.history, argStr);
+    if (#self.data.history > 10) then table.remove(self.data.history, 1); end
     if (cmd ~= nil) then
         return cmd:run(argIt);
     else
@@ -78,4 +82,4 @@ function CMDL:run(args)
     end
 end
 
-return CMDL;
+return CMDLLib;
