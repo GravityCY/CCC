@@ -9,7 +9,7 @@ local _def = Helper._def;
 local _if = Helper._if;
 
 --- A wrapper for CC peripherals.
-local Peripheral = {};
+local PeripheralLib = {};
 local noSide = true;
 
 local function instanceof(obj, class)
@@ -30,14 +30,14 @@ end
 
 --- <b>Whether to exclude peripherals on the sides.</b>
 ---@param value boolean
-function Peripheral.setNoSide(value)
+function PeripheralLib.setNoSide(value)
     noSide = value;
 end
 
 --- <b>Checks if an object is a peripheral.</b>
 ---@param obj any
 ---@return boolean
-function Peripheral.isPeripheral(obj)
+function PeripheralLib.isPeripheral(obj)
     if (type(obj) ~= "table") then return false; end
     local meta = getmetatable(obj);
     if (meta == nil) then return false; end
@@ -47,38 +47,46 @@ end
 --- <b>Checks if an object is an address.</b>
 ---@param obj any
 ---@return boolean
-function Peripheral.isAddress(obj)
-    return type(obj) == "string"; --and peripheral.wrap(obj) ~= nil;
+function PeripheralLib.isAddress(obj)
+    if (type(obj) ~= "string") then return false; end
+    local str = obj;
+    if (peripheral.isPresent(str)) then return true; end
+    local modem = peripheral.find("modem");
+    if (modem == nil) then return false; end
+    return str == modem.getNameLocal();
 end
 
 --- <b>Converts an object to a peripheral.</b>
----@param obj any
----@return any
-function Peripheral.asPeripheral(obj)
+---@param obj string|ccTweaked.peripherals.wrappedPeripheral
+---@return ccTweaked.peripherals.wrappedPeripheral
+function PeripheralLib.asPeripheral(obj)
     local p = nil;
-    if (Peripheral.isAddress(obj)) then p = peripheral.wrap(obj);
-    elseif (Peripheral.isPeripheral(obj)) then p = obj; end
+    if (PeripheralLib.isAddress(obj)) then
+        ---@cast obj string
+        p = peripheral.wrap(obj);
+    elseif (PeripheralLib.isPeripheral(obj)) then
+        p = obj;
+    end
+    ---@cast p ccTweaked.peripherals.wrappedPeripheral
     return p;
 end
 
 --- <b>Converts an object to an address.</b>
 ---@param obj any
 ---@return string
-function Peripheral.asAddress(obj)
+function PeripheralLib.asAddress(obj)
     local a = nil;
-    if (Peripheral.isAddress(obj)) then a = obj;
-    elseif (Peripheral.isPeripheral(obj)) then a = peripheral.getName(obj); end
+    if (PeripheralLib.isAddress(obj)) then a = obj;
+    elseif (PeripheralLib.isPeripheral(obj)) then a = peripheral.getName(obj); end
     return a;
 end
 
 --- <b>Wraps a peripheral.</b> <br>
 --- *Modifies the original peripheral.*
 ---@param periph table|string
----@return Peripheral|nil
-function Peripheral.wrap(periph)
+function PeripheralLib.wrap(periph)
     ---@class Peripheral
-    ---@field type string
-    periph = Peripheral.asPeripheral(periph);
+    periph = PeripheralLib.asPeripheral(periph);
 
     if (periph == nil) then return nil end
 
@@ -87,101 +95,109 @@ function Peripheral.wrap(periph)
     return periph;
 end
 
+local function __index(self, key)
+    local og = self.periph[key];
+    local t = type(og);
+    if (t ~= "function") then return og; end
+    return function(_, ...) return og(...); end
+end
+
 --- <b>Creates a peripheral wrapper.</b>
---- @param periph table
-function Peripheral.new(periph)
+--- @param periph string|ccTweaked.peripherals.wrappedPeripheral
+function PeripheralLib.new(periph)
     local self = {};
-    setmetatable(self, Peripheral);
+    periph = PeripheralLib.asPeripheral(periph);
     self.type = peripheral.getType(periph);
     self.address = Address.new(peripheral.getName(periph));
-    self.invoker = periph;
+    self.periph = periph;
+    setmetatable(self, {__index=function(tab, key) end});
     return self;
 end
 
 --- Get a peripheral by address and wraps it.
 ---@param address string
 ---@return table|nil Wrapper
-function Peripheral.get(address)
+function PeripheralLib.get(address)
     local original = peripheral.wrap(address);
     if (original == nil) then return nil; end
-    return Peripheral.wrap(original);
+    return PeripheralLib.wrap(original);
 end
 
 --- Get a list of peripherals by type
 ---@param targetType string
 ---@return Peripheral[]
-function Peripheral.findType(targetType)
+function PeripheralLib.findType(targetType)
     local out = {};
     for _, periph in pairs(peripheral.getNames()) do
         local name, type = peripheral.getType(periph);
         if (type == targetType) then
-            table.insert(out, Peripheral.wrap(peripheral.wrap(periph)));
+            table.insert(out, PeripheralLib.wrap(peripheral.wrap(periph)));
         end
     end
     return out;
 end
 
-function Peripheral.firstType(targetType)
+function PeripheralLib.firstType(targetType)
     for _, periph in pairs(peripheral.getNames()) do
         local name, type = peripheral.getType(periph);
         if (type == targetType) then
-            return Peripheral.wrap(peripheral.wrap(periph));
+            return PeripheralLib.wrap(peripheral.wrap(periph));
         end
     end
 end
 
-function Peripheral.firstByPredicate(predicate)
+function PeripheralLib.firstByPredicate(predicate)
     for _, name in pairs(peripheral.getNames()) do
         local p = peripheral.wrap(name);
         if (predicate(p)) then
-            return Peripheral.wrap(p);
+            return PeripheralLib.wrap(p);
         end
     end
 end
 
-function Peripheral.findByPredicate(predicate)
+function PeripheralLib.findByPredicate(predicate)
     local out = {};
 
     for _, name in pairs(peripheral.getNames()) do
         local p = peripheral.wrap(name);
         if (predicate(p)) then
-            table.insert(out, Peripheral.wrap(p));
+            table.insert(out, PeripheralLib.wrap(p));
         end
     end
 
     return out;
 end
 
-function Peripheral.findByKey(key)
+function PeripheralLib.findByKey(key)
     for _, periph in pairs(peripheral.getNames()) do
         if (peripheral.hasMethod(periph, key) ~= nil) then
-            return Peripheral.wrap(peripheral.wrap(periph));
+            return PeripheralLib.wrap(peripheral.wrap(periph));
         end
     end
 end
 
 --- Get the first peripheral of the given name.
 ---@param name string
-function Peripheral.first(name)
+function PeripheralLib.first(name)
     local original = peripheral.find(name);
     if (original == nil) then return nil; end
-    return Peripheral.wrap(original);
+    return PeripheralLib.wrap(original);
 end
 
 --- <b>Get all peripherals of the given name.</b> <br>
 --- Removes peripherals on the sides if `noSide` is set.
 ---@param name string
 ---@return Peripheral[]|nil peripherals A list of wrapped peripherals.
-function Peripheral.find(name)
+function PeripheralLib.find(name)
     local original = {peripheral.find(name)};
     if (#original == 0) then return nil; end
     ---@type Peripheral[]
     local wrapped = {};
     for i = 1, #original do
-        table.insert(wrapped, Peripheral.wrap(original[i]));
+        table.insert(wrapped, PeripheralLib.wrap(original[i]));
     end
     if (noSide) then return removeSide(wrapped);
     else return wrapped; end
 end
 
-return Peripheral;
+return PeripheralLib;

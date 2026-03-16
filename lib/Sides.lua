@@ -48,6 +48,8 @@ function Sides.getDistance(from, to)
     end
 end
 
+--- @param side integer
+--- @return integer
 function Sides.flip(side)
     if (Sides.isHorizontal(side)) then
         return Sides.rotateUp(side, 2);
@@ -57,37 +59,50 @@ function Sides.flip(side)
         elseif (side == Sides.DOWN) then
             return Sides.UP;
         end
+        ---@diagnostic disable-next-line: missing-return
     end
 end
 
+--- @return integer[]
 function Sides.values()
     return {0, 1, 2, 3, 4, 5};
 end
 
+---@param name string
 function Sides.fromPeripheralName(name)
     return fromPeripheralMap[name];
 end
 
+---@param index integer
 function Sides.toPeripheralName(index)
     return toPeripheralMap[index];
 end
 
+---@param index integer
+---@return string
 function Sides.toName(index)
     return sideNames[index];
 end
 
+---@param name string
 function Sides.toEnum(name)
     return Sides[name];
 end
 
+---@param side integer
+---@return ccTweaked.Vector
 function Sides.toVector(side)
     return toVectorMap[side];
 end
 
+--- @param side integer
+--- @return boolean
 function Sides.isHorizontal(side)
     return side >= 0 and side <= 3;
 end
 
+--- @param side integer
+--- @return boolean
 function Sides.isVertical(side)
     return side >= 4 and side <= 5;
 end

@@ -169,11 +169,13 @@ end
 --- <b>Moves the turtle</b>
 ---@param side number|nil
 ---@return boolean success Whether the turtle could successfully move.
----@return string|nil error The reason the turtle could not move.
+---@return string? error The reason the turtle could not move.
 function Tubby.move(side)
     side = side or Sides.FORWARD;
 
     local success, message = Tubby.act(Actions.MOVE, side);
+    ---@cast message string?
+    
     if (not success) then return success, message; end
     local facingVec = Sides.toVector(facing);
 
@@ -209,12 +211,14 @@ end
 --- <b>Mines a block</b>
 ---@param side integer|nil
 ---@return boolean dug Whether a block was broken.
----@return string|nil error The reason no block was broken.
+---@return string? error The reason no block was broken.
 function Tubby.mine(side)
     if (Tubby.doBlacklist) then
         local block = Tubby.inspect(side);
         if (block ~= nil and blacklist[block.name] ~= nil) then return false, Errors.DIG_IN_BLACKLIST; end
     end
+
+    ---@diagnostic disable-next-line: return-type-mismatch
     return Tubby.act(Actions.MINE, side);
 end
 
@@ -395,7 +399,7 @@ end
 ---@param side number
 ---@return table slots A table of all the dropped slots.
 function Tubby.dropAll(side)
-    return Tubby.dropPredicate(side, function(item, slot) return true; end)
+    return Tubby.dropPredicate(side, false, function(item, slot) return true; end)
 end
 
 --- <b>Drops all items</b> <br>
@@ -418,20 +422,16 @@ function Tubby.dropPredicate(side, detail, predicate)
     return dropped;
 end
 
---- <b>Inspect an item</b>
----@param side integer|nil
----@return table|nil
+--- <b>Inspect a block</b>
+---@param side integer?
+---@return ccTweaked.turtle.inspectInfo?
 function Tubby.inspect(side)
 
     if (side == nil) then side = Sides.FORWARD; end
 
     local exists, block = Tubby.act(Actions.INSPECT, side);
+    ---@cast block ccTweaked.turtle.inspectInfo
     if (not exists or block == nil) then return nil; end
-
-    local pName = Sides.toPeripheralName(side);
-    if (peripheral.isPresent(pName)) then
-        block.peripheral = Peripheral.wrap(pName);
-    end
 
     return block;
 end
@@ -521,10 +521,10 @@ end
 --- <b>Selects any non-null Item</b>
 ---@return integer
 function Tubby.selectAny()
-    local slot = Tubby.findAny();
-    if (slot == nil) then return -1; end
-    turtle.select(slot);
-    return slot;
+    local slots = Tubby.findAny();
+    if (#slots == 0) then return -1; end
+    turtle.select(slots[1]);
+    return slots[1];
 end
 
 --- Selects a slot, if it is not already selected
@@ -581,9 +581,9 @@ function Tubby.selectPredicate(detail, allowNils, predicate)
 end
 
 --- <b>Find any non-null item</b>
----@return integer|nil slot The slot of the item
+---@return integer[] slot The slot of the item
 function Tubby.findAny()
-    return Tubby.findItemPredicate(function(item, slot) return true end);
+    return Tubby.findItemPredicate(false, false, function(item, slot) return true end);
 end
 
 --- <b>Find emptyA slots</b>

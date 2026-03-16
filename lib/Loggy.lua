@@ -4,6 +4,8 @@ local Helper = require("lib.Helper");
 
 local Loggy = {};
 
+--- TODO: REDESIGN BUT BETTER THIS SHIT ASS
+
 local loggerMap = {};
 
 local LogHandlerList = {};

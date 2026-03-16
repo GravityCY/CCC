@@ -4,6 +4,7 @@ local Ask = require("lib.Ask");
 local Graphics = require("lib.Graphics")
 local Std = require("lib.Std");
 local Table = require("lib.Table")
+local Path  = require("lib.Path")
 
 local EasyAddress = {};
 
@@ -31,7 +32,7 @@ end
 ---@param namespace string
 ---@return table
 function EasyAddress.load(namespace)
-    local fpath = PATH .. namespace .. ".luaj";
+    local fpath = Path.join(PATH, namespace .. ".luaj");
     if (not fs.exists(fpath)) then return {}; end
     local f = fs.open(fpath, "r");
     local text = f.readAll();
@@ -43,7 +44,7 @@ end
 ---@param namespace string
 ---@param translations table
 function EasyAddress.save(namespace, translations)
-    local fpath = PATH .. namespace .. ".luaj";
+    local fpath = Path.join(PATH, namespace .. ".luaj");
     fs.makeDir(PATH);
     local f = fs.open(fpath, "w");
     f.write(textutils.serialise(translations));

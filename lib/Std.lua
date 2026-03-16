@@ -1,12 +1,15 @@
 local Std = {};
 
-function Std.getDataDirectory(namespace)
-    if (namespace == nil) then return "/data"; end
-    return "/data/" .. namespace .. "/";
+function Std.getDataDirectory(...)
+    local args = {...};
+    local path = table.concat(args, "/");
+
+    if (path == nil) then return "/data"; end
+    return "/data/" .. path;
 end
 
-function Std.getAndMakeDirectory(namespace)
-    local ret = Std.getDataDirectory(namespace);
+function Std.getAndMakeDirectory(...)
+    local ret = Std.getDataDirectory(...);
     if (not fs.exists(ret)) then fs.makeDir(ret); end
     return ret;
 end

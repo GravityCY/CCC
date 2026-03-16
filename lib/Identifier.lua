@@ -1,46 +1,53 @@
 local String = require("lib.String");
 
-local Identifier = {};
-Identifier.__index = Identifier;
+local IdentifierLib = {};
+---@class Identifier
+local IdentifierInstance = {};
 
-Identifier.Builder = {};
-Identifier.Builder.__index = Identifier.Builder;
+local IdentifierBuilder = {};
 
 --- <b>Returns the namespace of the identifier.</b>
 ---@param key string
 ---@return string
-function Identifier.getNamespace(key)
+function IdentifierLib.getNamespace(key)
     return key:match("(.+):")
 end
 
 --- <b>Returns the path of the identifier.</b>
 ---@param key string
 ---@return string
-function Identifier.getPath(key)
+function IdentifierLib.getPath(key)
     return key:match(":(.+)")
 end
 
-function Identifier.getPrettyPath(key)
-    return String.toWordCase(Identifier.getPath(key):gsub("_", " "));
+--- <b>Returns a pretty path </b>
+--- Eg. "minecraft:some_stick" -> "Some Stick"
+--- @param key string
+--- @return string
+function IdentifierLib.getPrettyPath(key)
+    return String.toWordCase(IdentifierInstance.getPath(key):gsub("_", " "));
 end
 
 --- <b>Creates an identifier builder.</b>
 ---@param namespace string
-function Identifier.Builder.new(namespace)
-    return setmetatable({namespace = namespace}, Identifier.Builder);
+function IdentifierBuilder.new(namespace)
+    local self = {
+        namespace = namespace;
+    }
+    return setmetatable(self, {__index=IdentifierInstance.Builder});
 end
 
 --- <b>Returns an identifier</b>
 ---@param path string
 ---@return Identifier|string
-function Identifier.Builder:build(path)
-    return Identifier.new(self.namespace, path);
+function IdentifierBuilder:build(path)
+    return IdentifierInstance.new(self.namespace, path);
 end
 
 --- <b>Returns a string identifier</b>
 ---@param path string
 ---@return string
-function Identifier.Builder:buildString(path)
+function IdentifierBuilder:buildString(path)
     return self.namespace .. ":" .. path;
 end
 
@@ -53,45 +60,37 @@ end
 --- @param namespace string
 --- @param path string
 --- @return Identifier
-function Identifier.new(namespace, path)
-    local self = {};
-    self.namespace = namespace;
-    self.path = path;
+function IdentifierLib.new(namespace, path)
+    assert(namespace ~= nil, "namespace is nil...");
 
-    local function _new1(_namespace, _path)
-        self.namespace = _namespace;
-        self.path = _path;
-        self.key = self.namespace .. ":" .. self.path;
+    if (path == nil) then
+        path = IdentifierLib.getPath(namespace);
+        namespace = IdentifierLib.getNamespace(namespace);
     end
 
-    local function _new2(_key)
-        local _namespace, _path = Identifier.getNamespace(_key), Identifier.getPath(_key);
-        _new1(_namespace, _path);
-    end
+    local self = {
+        namespace = namespace;
+        path = path;
+        key = namespace .. ":" .. path
+    };
 
-    if (namespace ~= nil and path ~= nil) then
-        _new1(namespace, path);
-    elseif (namespace ~= nil and path == nil) then
-        _new2(namespace);
-    end
-
-    setmetatable(self, Identifier);
+    setmetatable(self, {__index=IdentifierInstance});
     return self;
 end
 
 --- <b>Returns true if the identifier is equal to the key</b>
 --- @param key string
 --- @return boolean
-function Identifier:is(key)
+function IdentifierInstance:is(key)
     return self.key == key;
 end
 
 --- <b>Returns true if the identifier is equal to the other identifier</b>
 ---@param other any
 ---@return boolean
-function Identifier:equals(other)
-    if (getmetatable(other) ~= Identifier) then return false; end
+function IdentifierInstance:equals(other)
+    if (getmetatable(other) ~= IdentifierInstance) then return false; end
     return self.key == other.key;
 end
 
-return Identifier;
+return IdentifierLib;

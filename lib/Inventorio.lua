@@ -1,16 +1,14 @@
 local Peripheral = require("lib.Peripheral");
 local Address = require("lib.Address");
 local Helper = require("lib.Helper")
--- local Loggy  = require("lib.Loggy")
-
--- local LOGGER = Loggy.get("Inventorio").setDebug(true);
 
 local _def = Helper._def;
 
+local InventorioLib = {};
+InventorioLib.Predicates = {};
+
 ---@class Inventorio
 local Inventorio = {};
-Inventorio.__index = Inventorio;
-Inventorio.Predicates = {};
 
 ---@alias ItemPredicate fun(slot: number, item: table): boolean
 ---@alias PushPredicate fun(slot: number, item: table): boolean, number|nil, number|nil
@@ -18,7 +16,7 @@ Inventorio.Predicates = {};
 --- Predicate that allows only matching item names...
 ---@param itemName string
 ---@return ItemPredicate
-Inventorio.Predicates.newItemNamePredicate = function(itemName)
+InventorioLib.Predicates.newItemNamePredicate = function(itemName)
     return function(slot, item)
         return item.name == itemName;
     end
@@ -27,19 +25,19 @@ end
 --- Predicate that allows only matching item names...
 ---@param itemTag string
 ---@return ItemPredicate
-Inventorio.Predicates.newItemTagPredicate = function(itemTag)
+InventorioLib.Predicates.newItemTagPredicate = function(itemTag)
     return function(slot, item)
         return item.tags[itemTag] ~= nil;
     end
 end
 
-Inventorio.Predicates.newIgnoreSlotPredicate = function(predicate)
+InventorioLib.Predicates.newIgnoreSlotPredicate = function(predicate)
     return function(slot, item)
         return predicate(item); 
     end
 end
 
-Inventorio.Predicates.ALWAYS_TRUE = function()
+InventorioLib.Predicates.ALWAYS_TRUE = function()
     return true;
 end
 
@@ -62,9 +60,10 @@ end
 
 --- Tries to convert any object to a peripheral.
 ---@param obj any
----@return nil
+---@return ccTweaked.peripherals.Inventory?
 local function asInventory(obj)
     if (not isInventory(obj)) then return nil; end
+    ---@diagnostic disable-next-line: return-type-mismatch
     return Peripheral.asPeripheral(obj);
 end
 
@@ -77,7 +76,7 @@ end
 
 ---@param addrs string[]
 ---@return Inventorio
-function Inventorio.merge(addrs)
+function InventorioLib.merge(addrs)
     ---@class MergedInventory
     local self = {};
 
@@ -107,6 +106,7 @@ function Inventorio.merge(addrs)
     function self.add(...)
         for _, addr in ipairs({...}) do
             local inv = peripheral.wrap(addr);
+            ---@cast inv ccTweaked.peripherals.Inventory
             local size = inv.size();
             invs[#invs + 1] = inv;
             startOffsets[#startOffsets + 1] = mergedSize;
@@ -182,7 +182,8 @@ function Inventorio.merge(addrs)
         self.add(addr);
     end
 
-    local inventorio = setmetatable({}, Inventorio);
+    local inventorio = setmetatable({}, {__index=Inventorio});
+    ---@diagnostic disable-next-line: assign-type-mismatch
     inventorio.peripheral = setmetatable(self, MergedInventory);
 
     inventorio.peripheral.type = "inventory";
@@ -192,20 +193,22 @@ function Inventorio.merge(addrs)
 end
 
 --- Creates a new Inventorio object.
----@param obj string|table|nil def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
+---@param obj string|table an Address `String` | a `Peripheral` object.
 ---@return Inventorio
-function Inventorio.new(obj)
-    local self = {};
+function InventorioLib.new(obj)
     local inv = asInventory(obj);
-    if (inv == nil) then return; end
+    assert(inv ~= nil, "Invalid inventory");
 
     Peripheral.wrap(inv);
     ---@cast inv +Peripheral
 
-    self.peripheral = inv;
-    self.cache = nil;
-    self.cacheDepth = 0;
-    return setmetatable(self, Inventorio);
+    ---@class Inventorio
+    local self = {
+        peripheral = inv;
+        cache = nil;
+        cacheDepth = 0
+    };
+    return setmetatable(self, {__index=Inventorio});
 end
 
 --- <b>Push an item to another inventory.</b>
@@ -230,7 +233,7 @@ end
 --- @param toSlot integer? def: `1` — The slot to transfer to
 --- @param reverse boolean? def: `false` — If true, the items will be pushed in reverse order
 function Inventorio:pushName(toAddr, itemName, amount, toSlot, reverse)
-    return self:pushAmountPredicate(toAddr, amount, toSlot, false, reverse, Inventorio.Predicates.newItemNamePredicate(itemName))
+    return self:pushAmountPredicate(toAddr, amount, toSlot, false, reverse, InventorioLib.Predicates.newItemNamePredicate(itemName))
 end
 
 --- <b>Push an item to another inventory.</b>
@@ -240,7 +243,7 @@ end
 --- @param toSlot integer? def: `1` — The slot to transfer to
 --- @param reverse boolean? def: `false` — If true, the items will be pushed in reverse order
 function Inventorio:pushTag(toAddr, itemTag, amount, toSlot, reverse)
-    return self:pushAmountPredicate(toAddr, amount, toSlot, true, reverse, Inventorio.Predicates.newItemTagPredicate(itemTag));
+    return self:pushAmountPredicate(toAddr, amount, toSlot, true, reverse, InventorioLib.Predicates.newItemTagPredicate(itemTag));
 end
 
 --- Push a specific amount of items into an inventory by predicate
@@ -304,10 +307,10 @@ function Inventorio:pushPredicate(toAddr, detail, reverse, predicate)
 end
 
 --- <b>Pull an item to another inventory.</b>
----@param fromAddr string|table|nil def: `this.address`— an Address `String` | a `Peripheral` object | an `Inventory` object.
----@param fromSlot integer|nil def: `1` — The slot to transfer from
----@param toSlot integer|nil def: `1` — The slot to transfer to
----@param amount integer|nil def: `64` — The amount of items to transfer
+---@param fromAddr string an Address `String` | a `Peripheral` object | an `Inventory` object.
+---@param fromSlot integer The slot to transfer from
+---@param toSlot integer? def: `1` — The slot to transfer to
+---@param amount integer? def: `64` — The amount of items to transfer
 ---@return integer transferred Amount of items transferred
 function Inventorio:pull(fromAddr, fromSlot, toSlot, amount)
     fromAddr = asAddress(_def(fromAddr, self.peripheral.address.full));
@@ -319,7 +322,7 @@ end
 ---@param itemName string
 ---@return boolean
 function Inventorio:containsName(itemName)
-    return self:containsPredicate(Inventorio.Predicates.newItemNamePredicate(itemName));
+    return self:containsPredicate(InventorioLib.Predicates.newItemNamePredicate(itemName));
 end
 
 --- check if it contains a specific item
@@ -336,14 +339,14 @@ end
 ---@param itemName string name
 ---@return integer
 function Inventorio:countName(itemName)
-    return self:countPredicate(Inventorio.Predicates.newItemNamePredicate(itemName));
+    return self:countPredicate(false, InventorioLib.Predicates.newItemNamePredicate(itemName));
 end
 
 --- count an item by tag
 ---@param itemTag string tag
 ---@return integer
 function Inventorio:countTag(itemTag)
-    return self:countPredicate(Inventorio.Predicates.newItemTagPredicate(itemTag), true);
+    return self:countPredicate(true, InventorioLib.Predicates.newItemTagPredicate(itemTag));
 end
 
 --- Count items by predicate
@@ -371,14 +374,14 @@ end
 ---@param reverse boolean if true `end->start`, if false `start->end`, default: `false`
 ---@return integer[] slots
 function Inventorio:findName(name, reverse)
-    return self:findPredicate(false, reverse, false, Inventorio.Predicates.newItemNamePredicate(name));
+    return self:findPredicate(false, reverse, false, InventorioLib.Predicates.newItemNamePredicate(name));
 end
 
 --- Find items by tag
 ---@param reverse boolean if true `end->start`, if false `start->end`, default: `false`
 ---@return integer[] slots
 function Inventorio:findTag(tag, reverse)
-    return self:findPredicate(false, reverse, false, Inventorio.Predicates.newItemTagPredicate(tag));
+    return self:findPredicate(false, reverse, false, InventorioLib.Predicates.newItemTagPredicate(tag));
 end
 
 function Inventorio:findPredicate(detail, reverse, allowNils, predicate)
@@ -580,4 +583,4 @@ function Inventorio:getItemOrder(detail, reverse, predicate)
     return order;
 end
 
-return Inventorio;
+return InventorioLib;

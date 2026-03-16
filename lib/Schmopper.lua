@@ -82,7 +82,7 @@ function Rule.Import()
         local pull = math.huge;
 
         if (self.data.upto ~= nil) then
-            local stored = targetInventory:countPredicate(self.data.detailed, false, self.data.predicate);
+            local stored = targetInventory:countPredicate(self.data.detailed, self.data.predicate);
             if (stored >= self.data.upto) then return false; end
             pull = self.data.upto - stored;
         end
@@ -180,7 +180,7 @@ function Rule.Export()
     ---@return boolean
     function self.execute()
         local sourceInventory = inventories[self.data.source];
-        local available = sourceInventory:countPredicate(self.data.predicate, self.data.detailed);
+        local available = sourceInventory:countPredicate(self.data.detailed, self.data.predicate);
         if (self.data.keep ~= nil) then
             if (available <= self.data.keep) then return false; end
             available = available - self.data.keep;
