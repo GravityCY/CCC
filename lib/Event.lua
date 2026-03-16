@@ -1,27 +1,27 @@
-local Event = {}
-Event.__index = Event;
+local EventLib = {}
+local EventInstance = {};
 
 --- Create a new event
 --- @param cancellable boolean Whether the event is cancellable
 --- @param stopOnCancel boolean Whether to stop the event if a listener cancels
-function Event.new(cancellable, stopOnCancel)
+function EventLib.new(cancellable, stopOnCancel)
     local self = {};
     self.listeners = {};
     self.cancellable = cancellable or false;
     self.stopOnCancel = stopOnCancel or false;
 
-    return setmetatable(self, Event);
+    return setmetatable(self, {__index = EventInstance});
 end
 
 --- Check if a listener exists
 --- @param cb function
-function Event:exists(cb)
+function EventInstance:exists(cb)
     return self.listeners[cb] ~= nil;
 end
 
 --- Add a listener
 --- @param cb function
-function Event:listen(cb)
+function EventInstance:listen(cb)
     assert(type(cb) == "function", "Listener must be a function...");
     if (self.listeners[cb] ~= nil) then return cb end
     self.listeners[cb] = cb;
@@ -30,7 +30,7 @@ end
 
 --- Remove a listener
 --- @param cb function
-function Event:remove(cb)
+function EventInstance:remove(cb)
     if (self.listeners[cb] == nil) then return false; end
 
     self.listeners[cb] = nil;
@@ -38,7 +38,7 @@ function Event:remove(cb)
 end
 
 --- Invoke the event 
-function Event:invoke(...)
+function EventInstance:invoke(...)
     if (self.cancellable) then
         local cancelled = false;
         for _, listener in pairs(self.listeners) do
@@ -53,4 +53,4 @@ function Event:invoke(...)
     end
 end
 
-return Event;
+return EventLib;
