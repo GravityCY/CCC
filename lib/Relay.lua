@@ -100,20 +100,23 @@ function RelayInstance:awaitAny()
     end
 end
 
---- Wait for a redstone event on a specific side <br>
---- If `onlyIfLevel` is provided, only allow the event if the new level is the same as `onlyIfLevel`
---- @param side redstone.side
---- @param onlyIfLevel? integer 0-15
---- @return integer prevLevel, integer newLevel
-function RelayInstance:awaitSide(side, onlyIfLevel)
-    local prev = self.data.relay.getAnalogInput(side);
+--- Wait for a redstone event and invoke listeners
+function RelayInstance:awaitAnyPoll(pollCooldown)
+    pollCooldown = pollCooldown or 0.05;
+
+    local prevState = self:getState();
     while true do
-        os.pullEvent("redstone");
-        local current = self.data.relay.getAnalogInput(side);
-        local shouldAllow = onlyIfLevel == nil or onlyIfLevel == current;
-        if (shouldAllow and current ~= prev) then return prev, current; end
+        sleep(pollCooldown);
+        local currentState = self:getState();
+        for side, prevValue in pairs(prevState) do
+            local newValue = currentState[side];
+            if (newValue ~= prevValue) then
+                return side, prevValue, newValue;
+            end
+        end
     end
 end
+
 
 --- Wait for a redstone event on a specific side <br>
 --- If `onlyIfLevel` is provided, only allow the event if the new level is the same as `onlyIfLevel`
@@ -127,8 +130,25 @@ function RelayInstance:awaitSide(side, onlyIfLevel)
         local current = self.data.relay.getAnalogInput(side);
         local shouldAllow = onlyIfLevel == nil or onlyIfLevel == current;
         if (shouldAllow and current ~= prev) then return prev, current; end
+        prev = current;
     end
 end
 
+--- Wait for a redstone event on a specific side <br>
+--- If `onlyIfLevel` is provided, only allow the event if the new level is the same as `onlyIfLevel`
+--- @param side redstone.side
+--- @param onlyIfLevel? integer 0-15
+--- @return integer prevLevel, integer newLevel
+function RelayInstance:awaitSidePoll(side, pollingCooldown, onlyIfLevel)
+    pollingCooldown = pollingCooldown or 0.05;
+
+    local prev = self.data.relay.getAnalogInput(side);
+    while true do
+        sleep(pollingCooldown);
+        local current = self.data.relay.getAnalogInput(side);
+        local shouldAllow = onlyIfLevel == nil or onlyIfLevel == current;
+        if (shouldAllow and current ~= prev) then return prev, current; end
+    end
+end
 
 return RelayLib;

@@ -77,21 +77,21 @@ end
 
 local defaultTowardsHighway = data:get("towardsHighway");
 
-local function getState(towardsHighway)
-    return towardsHighway ~= defaultTowardsHighway;
+local function getState(towardsJunction)
+    return towardsJunction == defaultTowardsHighway;
 end
 
-local function setAll(towardsHighway)
+local function setAll(towardsJunction)
     for _, relay in pairs(relays) do
-        relay.junction:setOutput("front", getState(towardsHighway));
-        relay.junction:setOutput("left", not towardsHighway);
+        relay.junction:setOutput("front", getState(towardsJunction));
+        relay.junction:setOutput("left", towardsJunction);
     end
 end
 
-local function set(relay, towardsHighway)
-    setAll(not towardsHighway)
-    relay:setOutput("front", getState(towardsHighway));
-    relay:setOutput("left", not towardsHighway);
+local function set(relay, towardsJunction)
+    setAll(not towardsJunction)
+    relay:setOutput("front", getState(towardsJunction));
+    relay:setOutput("left", towardsJunction);
 end
 
 local function increment(prev)
@@ -106,59 +106,58 @@ local circulating = data:getOrSet("circulating", 0);
 
 local circleAmount = 4;
 
-local function circulate(n)
-    local toCirculate = math.min(circleAmount - circulating, n);
-    if (toCirculate == 0) then return end
+local lastCircle = os.clock()
+
+local function circulate(n, f)
+    local toCirculate = n;
+    if (not f) then
+        toCirculate = math.min(circleAmount - circulating, n);
+        if (toCirculate == 0) then return end
+    end
 
     pprint("Circulating %d", toCirculate);
 
     for i = 1, toCirculate do
+        sleep(math.max(math.min(0.5 - os.clock() - lastCircle, 0.5), 0));
         minecartBuffer:pushName(dispenser, "minecraft:minecart", 1);
-        dispenserRelay:tick(nil, true, 0.05);
-        sleep(0.5);
+        dispenserRelay:tick(nil, true, 0.1);
     end
-
-    circulating = circulating + toCirculate;
-    data:setvar("circulating", circulating);
-end
-
-local function circulateThread()
-    while true do
-        circulate(circleAmount - circulating);
-        sleep(0.5);
+    
+    if (not f) then
+        circulating = circulating + toCirculate;
+        data:setvar("circulating", circulating);
     end
 end
 
 -- TODO: ISSUES WITH THE EVENT QUEUE OR SOMETHING? I THINK I'M OVERFILLING THE EVENT QUEUE WITH TOO MANY EVENTS (256)
 -- MANY RELAYS AWAITING FOR EVENTS, LOTS OF SLEEPS, IDEK
 
+
 local function sortThread()
+    circulate(circleAmount);
     while true do
         Redstone:tick("top", true, 0.1);
         sleep(0.6);
 
-        print("looking for mob")
         local entity = automata:look("entity");
         if (entity == nil) then
-            print("no mob found")
             if (turtle.attack()) then
                 minecartBuffer:pull(myName, 1);
-                circulating = circulating - 1;
+                circulate(1, true);
             end
         else
-            pprint("found %s", entity.name)
             local relay = relays[entity.name];
             if (relay ~= nil) then
                 print(("Found %s pushing to chamber"):format(entity.name));
                 set(relay.junction, true);
                 Redstone:tick("bottom", true, 0.1);
-                relay.junction:awaitSide("back", 15);
+                relay.junction:awaitSidePoll("back", 15);
 
                 data:modifyvar("stored", entity.name, increment);
                 pprint("Stored %d %s", data:getvar("stored", entity.name), entity.name);
             end
-            setAll(not defaultTowardsHighway);
-            circulating = circulating - 1;
+            setAll(false);
+            circulate(1, true);
         end
     end
 end
@@ -169,7 +168,7 @@ local function dequeueThread()
     for name, relay in pairs(relays) do
         table.insert(tasks, function()
             while true do
-                local side, prev, new = relay.dequeue:awaitAny();
+                local side, prev, new = relay.dequeue:awaitAnyPoll(0.1);
                 if (side == Sides.DOWN and prev == 0 and new == 15) then
                     relay.dequeue:tick("front", true, 0.05);
                     data:modifyvar("stored", name, decrement);
@@ -182,4 +181,4 @@ local function dequeueThread()
     parallel.waitForAll(table.unpack(tasks));
 end
 
-parallel.waitForAll(sortThread, dequeueThread, circulateThread);
+parallel.waitForAll(sortThread, dequeueThread);
