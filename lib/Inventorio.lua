@@ -9,6 +9,7 @@ InventorioLib.Predicates = {};
 
 ---@class Inventorio
 local Inventorio = {};
+Inventorio.__index = Inventorio;
 
 ---@alias ItemPredicate fun(slot: number, item: table): boolean
 ---@alias PushPredicate fun(slot: number, item: table): boolean, number|nil, number|nil
@@ -208,7 +209,7 @@ function InventorioLib.new(obj)
         cache = nil;
         cacheDepth = 0
     };
-    return setmetatable(self, {__index=Inventorio});
+    return setmetatable(self, Inventorio);
 end
 
 --- <b>Push an item to another inventory.</b>

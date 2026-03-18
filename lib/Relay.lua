@@ -5,11 +5,12 @@ local RelayLib = {};
 
 ---@class Relay : myCcTweaked.peripherals.RelayInstance
 local RelayInstance = {};
+RelayInstance.__name = "Relay";
 
 ---@param self Relay
 ---@param key string
 ---@return any
-local function __index(self, key)
+function RelayInstance.__index(self, key)
     if (RelayInstance[key] ~= nil) then return RelayInstance[key]; end
 
     local og = self.data.relay[key];
@@ -20,6 +21,10 @@ local function __index(self, key)
     end
 
     return rawget(self, key);
+end
+
+function RelayLib.instanceof(obj)
+    return type(obj) == "table" and getmetatable(obj) == RelayInstance;
 end
 
 ---@return Relay
@@ -38,7 +43,7 @@ function RelayLib.wrap(obj)
         }
     };
 
-    return setmetatable(self, {__index = __index});
+    return setmetatable(self, RelayInstance);
 end
 
 --- Set output state on all sides
@@ -100,13 +105,15 @@ function RelayInstance:awaitAny()
     end
 end
 
---- Wait for a redstone event and invoke listeners
-function RelayInstance:awaitAnyPoll(pollCooldown)
+--- Wait for a redstone event
+function RelayInstance:awaitAnyPoll(pollCooldown, timeout)
     pollCooldown = pollCooldown or 0.05;
 
+    local start = os.clock();
     local prevState = self:getState();
-    while true do
+    while ((os.clock() - start) < timeout) do
         sleep(pollCooldown);
+
         local currentState = self:getState();
         for side, prevValue in pairs(prevState) do
             local newValue = currentState[side];
@@ -137,17 +144,21 @@ end
 --- Wait for a redstone event on a specific side <br>
 --- If `onlyIfLevel` is provided, only allow the event if the new level is the same as `onlyIfLevel`
 --- @param side redstone.side
+--- @param timeout? number seconds
 --- @param onlyIfLevel? integer 0-15
---- @return integer prevLevel, integer newLevel
-function RelayInstance:awaitSidePoll(side, pollingCooldown, onlyIfLevel)
+--- @return integer? prevLevel, integer? newLevel
+function RelayInstance:awaitSidePoll(side, pollingCooldown, timeout, onlyIfLevel)
     pollingCooldown = pollingCooldown or 0.05;
+    timeout = timeout or math.huge;
 
+    local start = os.clock();
     local prev = self.data.relay.getAnalogInput(side);
-    while true do
+    while ((os.clock() - start) < timeout) do
         sleep(pollingCooldown);
         local current = self.data.relay.getAnalogInput(side);
         local shouldAllow = onlyIfLevel == nil or onlyIfLevel == current;
         if (shouldAllow and current ~= prev) then return prev, current; end
+        prev = current;
     end
 end
 

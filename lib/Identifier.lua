@@ -3,8 +3,11 @@ local String = require("lib.String");
 local IdentifierLib = {};
 ---@class Identifier
 local IdentifierInstance = {};
+IdentifierInstance.__index = IdentifierInstance;
 
+---@class IdentifierBuilder
 local IdentifierBuilder = {};
+IdentifierBuilder.__index = IdentifierBuilder;
 
 --- <b>Returns the namespace of the identifier.</b>
 ---@param key string
@@ -25,23 +28,25 @@ end
 --- @param key string
 --- @return string
 function IdentifierLib.getPrettyPath(key)
-    return String.toWordCase(IdentifierInstance.getPath(key):gsub("_", " "));
+    return String.toWordCase(IdentifierLib.getPath(key):gsub("_", " "));
 end
 
 --- <b>Creates an identifier builder.</b>
 ---@param namespace string
+---@return IdentifierBuilder
 function IdentifierBuilder.new(namespace)
+    ---@class IdentifierBuilder
     local self = {
         namespace = namespace;
     }
-    return setmetatable(self, {__index=IdentifierInstance.Builder});
+    return setmetatable(self, IdentifierBuilder);
 end
 
 --- <b>Returns an identifier</b>
 ---@param path string
 ---@return Identifier|string
 function IdentifierBuilder:build(path)
-    return IdentifierInstance.new(self.namespace, path);
+    return IdentifierLib.new(self.namespace, path);
 end
 
 --- <b>Returns a string identifier</b>
@@ -74,7 +79,7 @@ function IdentifierLib.new(namespace, path)
         key = namespace .. ":" .. path
     };
 
-    setmetatable(self, {__index=IdentifierInstance});
+    setmetatable(self, IdentifierInstance);
     return self;
 end
 
