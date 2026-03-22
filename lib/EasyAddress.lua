@@ -10,17 +10,17 @@ local EasyAddress = {};
 
 local PATH = Std.getAndMakeDirectory("easy_address");
 
-local function getArgs(args)
+local function getArgs(events)
     local addrs = {};
-    for i, v in ipairs(args) do
-        table.insert(addrs, v[2]);
+    for _, args in ipairs(events) do
+        table.insert(addrs, args[2]);
     end
     return addrs;
 end
 
 local function pullMultiple(event)
-    local eventArgs = Helper.pullRepeat(event);
-    return getArgs(eventArgs);
+    local events = Helper.pullRepeat(event);
+    return getArgs(events);
 end
 
 local function pullAny(...)
@@ -49,6 +49,11 @@ function EasyAddress.save(namespace, translations)
     local f = fs.open(fpath, "w");
     f.write(textutils.serialise(translations));
     f.close();
+end
+
+---@return string[]
+function EasyAddress.awaitModem()
+    return pullMultiple("peripheral");
 end
 
 --- <b>Waits for an peripheral to be enabled.</b>
