@@ -4,14 +4,17 @@ local Table  = require("lib.Table")
 local Path   = require("lib.Path")
 
 local SerialLib = {};
-local Serializer = {};
----@class Serializer
-local SerializerInstance = {};
----@class Serial
-local SerialInstance = {};
-SerialInstance.__index = SerialInstance;
+local CodecLib = {};
 
-SerialLib.Serializer = Serializer;
+local Codec = {}; ---@class Codec
+Codec.__index = Codec;
+local Serial = {}; ---@class Serial
+
+Serial.__name = "Serial";
+Serial.__index = Serial;
+Serial.__construct = SerialLib.new;
+
+SerialLib.Codec = CodecLib;
 
 --- Summary: serialize / deserialize
 --- By default given an id will just give back a table
@@ -62,42 +65,61 @@ end
 ---@param self Serial
 ---@param v any
 local function getSerializer(self, v)
-    for _, serializer in ipairs(self.serializers) do
-        if (serializer.predicate(v)) then
-            return serializer;
+    for id, codec in pairs(self.codecs) do
+        if (codec.serializer.predicate(v)) then
+            return codec.serializer;
         end
+    end
+
+    if (self.parent ~= nil) then
+        return getSerializer(self.parent);
     end
 end
 
 ---@param self Serial
 ---@param v any
 local function getDeserializer(self, v)
-    for _, deserializer in ipairs(self.deserializers) do
-        if (deserializer.predicate(v)) then
-            return deserializer;
+    for id, codec in pairs(self.codecs) do
+        if (codec.deserializer.predicate(v)) then
+            return codec.deserializer;
         end
+    end
+
+    if (self.parent ~= nil) then
+        return getDeserializer(self.parent);
     end
 end
 
-function Serializer.new()
-    ---@class Serializer
+function CodecLib.new(id)
+    ---@class Codec
     local self = {
-        ---@type fun(value: any): boolean
-        predicate = nil;
-        ---@type fun(value: any): any
-        converter = nil;
+        id = id;
+        serializer = {
+            ---@type fun(value: any): boolean
+            predicate = nil;
+            ---@type fun(value: any): any
+            converter = nil;
+        };
+        deserializer = {
+            ---@type fun(value: any): boolean
+            predicate = nil;
+            ---@type fun(value: any): any
+            converter = nil;
+        }
     };
     
-    return setmetatable(self, {__index = SerializerInstance});
+    return setmetatable(self, Codec);
 end
 
-function SerializerInstance:setPredicate(predicate)
-    self.predicate = predicate;
+function Codec:serialize(predicate, converter)
+    self.serializer.predicate = predicate;
+    self.serializer.converter = converter;
     return self;
 end
 
-function SerializerInstance:setConverter(converter)
-    self.converter = converter;
+function Codec:deserialize(predicate, converter)
+    self.deserializer.predicate = predicate;
+    self.deserializer.converter = converter;
     return self;
 end
 
@@ -111,35 +133,47 @@ function SerialLib.new(namespace, id)
 
     ---@class Serial
     local self = {
+        namespace = namespace;
+        id = id;
         path = Path.join(namespaceDir, id .. ".luaj");
         data = {};
         autosave = false;
-        ---@type Serializer[]
-        serializers = {};
-        ---@type Serializer[]
-        deserializers = {};
+        codecs = {}; ---@type table<string, Codec>
         modifications = 0;
+        parent = nil;
     };
 
-    self = setmetatable(self, SerialInstance);
-
-    return self;
+    return setmetatable(self, Serial);
 end
 
---- @param serializer Serializer
-function SerialInstance:serializer(serializer)
-    table.insert(self.serializers, serializer);
+function Serial:child(id)
+    local child = SerialLib.new(self.namespace, id);
+    child.parent = self;
+    return child;
 end
 
---- @param deserializer Serializer
-function SerialInstance:deserializer(deserializer)
-    table.insert(self.deserializers, deserializer);
+function Serial:classCodec(id, class, dataGetter)
+    self:codec(id, SerialLib.Codec.new(id)
+        :serialize(
+            function(v) return type(v) == "table" and class == getmetatable(v) end,
+            function(v) return {__name=class.__name, data=self:toSerializable(dataGetter(v))} end
+        )
+        :deserialize(
+            function(v) return type(v) == "table" and v.__name == class.__name end,
+            function(v) return class.__construct(self:toDeserializable(v.data)) end
+        )
+    );
+end
+
+--- @param codec Codec
+function Serial:codec(id, codec)
+    self.codecs[id] = codec;
 end
 
 --- Converts a serialized value back to its deserialzed value
 ---@param value any
 ---@return any
-function SerialInstance:toDeserializable(value)
+function Serial:toDeserializable(value)
     local deserializer = getDeserializer(self, value)
     if (deserializer) then return deserializer.converter(value); end
     if (type(value) ~= "table") then return value end
@@ -156,7 +190,7 @@ end
 --- Converts a value to a serializable value
 ---@param value any
 ---@return any
-function SerialInstance:toSerializable(value)
+function Serial:toSerializable(value)
     if (type(value) == "function") then return nil; end
 
     local serializer = getSerializer(self, value)
@@ -173,13 +207,13 @@ function SerialInstance:toSerializable(value)
 end
 
 --- Only tries saving if there is any modifications
-function SerialInstance:trySave()
+function Serial:trySave()
     if (self.modifications == 0) then return end
     self:save();
 end
 
 --- Saves the whole document
-function SerialInstance:save()
+function Serial:save()
     local file = fs.open(self.path, "w");
     file.write(textutils.serialize(self:toSerializable(self.data)));
     file.close();
@@ -187,7 +221,7 @@ function SerialInstance:save()
 end
 
 --- Loads the whole document
-function SerialInstance:load()
+function Serial:load()
     if (not fs.exists(self.path)) then return end
 
     local file = fs.open(self.path, "r");
@@ -197,7 +231,7 @@ end
 
 --- Automatically save after every modification
 ---@param value boolean? default is true
-function SerialInstance:auto(value)
+function Serial:auto(value)
     if (value == nil) then value = true; end
     self.autosave = value;
     return self;
@@ -206,7 +240,7 @@ end
 --- Get a variable
 ---@param key string|string[]
 ---@return any
-function SerialInstance:get(key)
+function Serial:get(key)
     local keys = getKeyAsList(key);
 
     local tab = self.data;
@@ -221,7 +255,7 @@ end
 --- Checks if a variable exists
 ---@param key string|string[]
 ---@return boolean
-function SerialInstance:exists(key)
+function Serial:exists(key)
     local keys = getKeyAsList(key);
     return self:get(keys) ~= nil;
 end
@@ -229,7 +263,7 @@ end
 --- Get a variable or set it if it doesn't exist
 ---@param key string|string[]
 ---@param value any
-function SerialInstance:getOrSet(key, value)
+function Serial:getOrSet(key, value)
     local keys = getKeyAsList(key);
 
     local v = self:get(keys);
@@ -241,7 +275,7 @@ end
 ---@param key string|string[]
 ---@param value any
 ---@return any prev
-function SerialInstance:set(key, value)
+function Serial:set(key, value)
     local keys = getKeyAsList(key);
     local data, lkey = getOrMakeParent(self, keys);
 
@@ -260,13 +294,13 @@ end
 --- eg. self:modify("a.b.c.d", function(prev) return (prev or 0) + 1 end)
 ---@param key string|string[]
 ---@param modifier fun(prev: any): any
-function SerialInstance:modify(key, modifier)
+function Serial:modify(key, modifier)
     local keys = getKeyAsList(key);
     return self:set(keys, modifier(self:get(keys)));
 end
 
 --- Get a variable by vararg keys <br>
-function SerialInstance:getvar(...)
+function Serial:getvar(...)
     local args = {...};
     return self:get(args);
 end
@@ -274,7 +308,7 @@ end
 --- Set a variable by vararg keys and last argument value<br>
 --- 1 to n-1 are the keys, n is the value
 ---@param ... any
-function SerialInstance:setvar(...)
+function Serial:setvar(...)
     local keys, value = getKeysAndValue(...);
     self:set(keys, value);
 end
@@ -282,7 +316,7 @@ end
 --- Set a variable by vararg keys and last argument modifier<br>
 --- 1 to n-1 are the keys, n is the modifier
 ---@param ... any
-function SerialInstance:modifyvar(...)
+function Serial:modifyvar(...)
     local keys, value = getKeysAndValue(...);
     self:modify(keys, value);
 end
