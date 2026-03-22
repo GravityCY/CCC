@@ -9,6 +9,7 @@ InventorioLib.Predicates = {};
 
 ---@class Inventorio
 local Inventorio = {};
+Inventorio.__name = "Inventorio";
 Inventorio.__index = Inventorio;
 
 ---@alias ItemPredicate fun(slot: number, item: table): boolean
@@ -73,6 +74,14 @@ local MergedInventory = {};
 
 function MergedInventory.instanceof(obj)
     return type(obj) == "table" and instanceof(obj.peripheral, MergedInventory);
+end
+
+function InventorioLib.class()
+    return Inventorio;
+end
+
+function InventorioLib.instanceof(obj)
+    return type(obj) == "table" and getmetatable(obj) == Inventorio;
 end
 
 ---@param addrs string[]
@@ -584,4 +593,5 @@ function Inventorio:getItemOrder(detail, reverse, predicate)
     return order;
 end
 
+Inventorio.__construct = InventorioLib.new;
 return InventorioLib;

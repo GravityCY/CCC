@@ -4,14 +4,14 @@ local Peripheral = require("lib.Peripheral");
 local RelayLib = {};
 
 ---@class Relay : myCcTweaked.peripherals.RelayInstance
-local RelayInstance = {};
-RelayInstance.__name = "Relay";
+local Relay = {};
+Relay.__name = "Relay";
 
 ---@param self Relay
 ---@param key string
 ---@return any
-function RelayInstance.__index(self, key)
-    if (RelayInstance[key] ~= nil) then return RelayInstance[key]; end
+function Relay.__index(self, key)
+    if (Relay[key] ~= nil) then return Relay[key]; end
 
     local og = self.data.relay[key];
     if (type(og) ~= "function") then return og; end
@@ -23,8 +23,12 @@ function RelayInstance.__index(self, key)
     return rawget(self, key);
 end
 
+function RelayLib.class()
+    return Relay;
+end
+
 function RelayLib.instanceof(obj)
-    return type(obj) == "table" and getmetatable(obj) == RelayInstance;
+    return type(obj) == "table" and getmetatable(obj) == Relay;
 end
 
 ---@return Relay
@@ -32,7 +36,7 @@ function RelayLib.wrap(obj)
     local periph = nil;
     if (obj == redstone) then periph = redstone;
     else periph = Peripheral.asPeripheral(obj); end
-    if (periph == nil) then error("periph is nil"); end
+    assert(periph ~= nil, "periph is nil");
 
     ---@cast periph myCcTweaked.peripherals.Relay
     
@@ -43,34 +47,39 @@ function RelayLib.wrap(obj)
         }
     };
 
-    return setmetatable(self, RelayInstance);
+    return setmetatable(self, Relay);
 end
 
 --- Set output state on all sides
 ---@param state boolean
-function RelayInstance:setOutputAll(state)
+function Relay:setOutputAll(state)
+    local changed = false;
     for _, side in ipairs(Sides.values()) do
         local direction = Sides.toPeripheralName(side);
-        self.data.relay.setOutput(direction, state);
+        changed = changed or self:setOutput(direction, state);
     end
+    return changed;
 end
 
 --- Set redstone output on 1 side
 ---@param dir? string
 ---@param state boolean
-function RelayInstance:setOutput(dir, state)
+---@return boolean changed did anything change?
+function Relay:setOutput(dir, state)
     if (dir == nil) then
-        self:setOutputAll(state);
-        return;
+        return self:setOutputAll(state);
     end
+    
+    if (self.data.relay.getOutput(dir) == state) then return false; end
     self.data.relay.setOutput(dir, state);
+    return true;
 end
 
 --- Tick a side on and off 
 --- @param dir? string
 --- @param startState boolean
 --- @param time number
-function RelayInstance:tick(dir, startState, time)
+function Relay:tick(dir, startState, time)
     self:setOutput(dir, startState);
     sleep(time);
     self:setOutput(dir, not startState);
@@ -79,7 +88,7 @@ end
 
 ---@alias RelayListener fun(side: integer, prev: integer, new: integer)
 
-function RelayInstance:getState()
+function Relay:getState()
     return {
         [Sides.FORWARD] = self.data.relay.getAnalogInput("front"),
         [Sides.RIGHT] = self.data.relay.getAnalogInput("right"),
@@ -91,7 +100,7 @@ function RelayInstance:getState()
 end
 
 --- Wait for a redstone event and invoke listeners
-function RelayInstance:awaitAny()
+function Relay:awaitAny()
     local prevState = self:getState();
     while true do
         os.pullEvent("redstone");
@@ -106,7 +115,7 @@ function RelayInstance:awaitAny()
 end
 
 --- Wait for a redstone event
-function RelayInstance:awaitAnyPoll(pollCooldown, timeout)
+function Relay:awaitAnyPoll(pollCooldown, timeout)
     pollCooldown = pollCooldown or 0.05;
 
     local start = os.clock();
@@ -130,7 +139,7 @@ end
 --- @param side redstone.side
 --- @param onlyIfLevel? integer 0-15
 --- @return integer prevLevel, integer newLevel
-function RelayInstance:awaitSide(side, onlyIfLevel)
+function Relay:awaitSide(side, onlyIfLevel)
     local prev = self.data.relay.getAnalogInput(side);
     while true do
         os.pullEvent("redstone");
@@ -147,7 +156,7 @@ end
 --- @param timeout? number seconds
 --- @param onlyIfLevel? integer 0-15
 --- @return integer? prevLevel, integer? newLevel
-function RelayInstance:awaitSidePoll(side, pollingCooldown, timeout, onlyIfLevel)
+function Relay:awaitSidePoll(side, pollingCooldown, timeout, onlyIfLevel)
     pollingCooldown = pollingCooldown or 0.05;
     timeout = timeout or math.huge;
 
@@ -162,4 +171,5 @@ function RelayInstance:awaitSidePoll(side, pollingCooldown, timeout, onlyIfLevel
     end
 end
 
+Relay.__construct = RelayLib.wrap;
 return RelayLib;

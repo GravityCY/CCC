@@ -22,14 +22,12 @@ function Helper.pullRepeat(name)
     local queued = false;
 
     while true do
-        ---@diagnostic disable-next-line: undefined-field
         local args = {os.pullEvent()};
         local event = args[1];
         if (event == "helper_event") then break
         elseif (event == name) then
             if (not queued) then
                 queued = true;
-                ---@diagnostic disable-next-line: undefined-field
                 os.queueEvent("helper_event");
             end
             table.insert(ret, args);
