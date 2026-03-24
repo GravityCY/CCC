@@ -32,6 +32,16 @@ function String.trim(str)
     return string.gsub(str, "^%s*(.-)%s*$", "%1");
 end
 
+---@param str string
+---@param match string
+function String.startsWith(str, match)
+    for i = 1, #match do
+        local c = str:sub(i, i);
+        if (c ~= match:sub(i, i)) then return false; end
+    end
+    return true;
+end
+
 function String.split(str, separator)
     local tab = {};
 

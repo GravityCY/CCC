@@ -9,7 +9,7 @@ local CMDLInstance = {};
 ---@class Command
 local Command = {};
 
----@param argIt PeekableIterator<string>
+---@param argIt structs.PeekableIterator<string>
 function Command:run(argIt)
     return self.fn(argIt);
 end
@@ -35,7 +35,7 @@ end
 
 ---@param name string
 ---@param description string
----@param fn fun(argIt: PeekableIterator<string>): any
+---@param fn fun(argIt: structs.PeekableIterator<string>): any
 function CMDLInstance:command(name, description, fn)
     ---@class Command
     local command = {

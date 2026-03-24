@@ -51,7 +51,7 @@ function RelayLib.wrap(obj)
 end
 
 --- Set output state on all sides
----@param state boolean
+---@param state boolean|integer
 function Relay:setOutputAll(state)
     local changed = false;
     for _, side in ipairs(Sides.values()) do
@@ -63,28 +63,34 @@ end
 
 --- Set redstone output on 1 side
 ---@param dir? string
----@param state boolean
+---@param state boolean|integer
 ---@return boolean changed did anything change?
 function Relay:setOutput(dir, state)
     if (dir == nil) then
         return self:setOutputAll(state);
     end
-    
-    if (self.data.relay.getOutput(dir) == state) then return false; end
-    self.data.relay.setOutput(dir, state);
+
+    if (type(state) == "boolean") then
+        if (self.data.relay.getOutput(dir) == state) then return false; end
+        self.data.relay.setOutput(dir, state);
+    else
+        if (self.data.relay.getAnalogOutput(dir) == state) then return false; end
+        self.data.relay.setAnalogOutput(dir, state);
+    end
+
     return true;
 end
 
 --- Tick a side on and off 
 --- @param dir? string
---- @param startState boolean
+--- @param startState boolean|integer
+--- @param endState boolean|integer
 --- @param time number
-function Relay:tick(dir, startState, time)
+function Relay:tick(dir, startState, endState, time)
     self:setOutput(dir, startState);
     sleep(time);
-    self:setOutput(dir, not startState);
+    self:setOutput(dir, endState);
 end
-
 
 ---@alias RelayListener fun(side: integer, prev: integer, new: integer)
 
@@ -132,7 +138,6 @@ function Relay:awaitAnyPoll(pollCooldown, timeout)
         end
     end
 end
-
 
 --- Wait for a redstone event on a specific side <br>
 --- If `onlyIfLevel` is provided, only allow the event if the new level is the same as `onlyIfLevel`

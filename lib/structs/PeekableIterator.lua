@@ -1,11 +1,11 @@
----@class PeekableIterator<T>
+---@class structs.PeekableIterator<T>
 local PeekableIterator = {};
 
 ---@param list T[]
 ---@param startIndex? integer
----@return PeekableIterator
+---@return structs.PeekableIterator
 function PeekableIterator.new(list, startIndex)
-    ---@class PeekableIterator
+    ---@class structs.PeekableIterator
     local self = {
         data = {
             list = list;

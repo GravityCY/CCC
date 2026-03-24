@@ -131,7 +131,7 @@ local function porterFilterForm(porter)
     return true;
 end
 
----@param args PeekableIterator<string>
+---@param args structs.PeekableIterator<string>
 local function processorCmd(args)
     if (not args:hasNext()) then
         print("Expected: add, remove, list");
@@ -167,7 +167,7 @@ local function processorCmd(args)
     end
 end
 
----@param args PeekableIterator<string>
+---@param args structs.PeekableIterator<string>
 local function recipeCmd(args)
     if (not args:hasNext()) then
         print("Expected: add, remove, list");
@@ -235,7 +235,7 @@ local function recipeCmd(args)
     end
 end
 
----@param args PeekableIterator<string>
+---@param args structs.PeekableIterator<string>
 local function stockpileCmd(args)
     if (not args:hasNext()) then
         print("Expected: set, remove, list");
@@ -317,7 +317,7 @@ local function stockpileCmd(args)
     end
 end
 
----@param args PeekableIterator<string>
+---@param args structs.PeekableIterator<string>
 local function importCmd(args)
     if (not args:hasNext()) then
         print("Expected: add, remove, list");
@@ -372,7 +372,7 @@ local function importCmd(args)
     end
 end
 
----@param args PeekableIterator<string>
+---@param args structs.PeekableIterator<string>
 local function exportCmd(args)
     if (not args:hasNext()) then
         print("Expected: add, remove, list");
@@ -427,7 +427,7 @@ local function exportCmd(args)
     end
 end
 
----@param args PeekableIterator<string>
+---@param args structs.PeekableIterator<string>
 local function craftCmd(args)
     local name = args:next();
     if (name == nil) then
@@ -452,7 +452,7 @@ local function craftCmd(args)
     end
 end
 
----@param args PeekableIterator<string>
+---@param args structs.PeekableIterator<string>
 local function dumpCmd(args)
 --- TODO: implement dump
     -- AE69.
