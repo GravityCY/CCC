@@ -6,12 +6,12 @@ local data = Serial.new("mobsorter_vjunction"):auto();
 ---@type HashMap<string, string>
 local chambers = nil;
 
-data:serializer(Serial.Serializer.new()
+data:serializer(Serial.Codec.new()
     :setPredicate(function(v) return HashMap.instanceof(v) end)
     :setConverter(function(v) return {__name="hashmap", entries=data:toSerializable(v.data.map)} end)
 );
 
-data:deserializer(Serial.Serializer.new()
+data:deserializer(Serial.Codec.new()
     :setPredicate(function(v) return type(v) == "table" and v.__name == "hashmap" end)
     :setConverter(function(v)
         local map = HashMap.new();
