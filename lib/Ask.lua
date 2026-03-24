@@ -135,6 +135,8 @@ function Ask.ask(question, options)
         write(question);
         local res = read();
         local isBlank = res == nil or res == "";
+        
+        ---@diagnostic disable-next-line: undefined-field
         if (options.data.num ~= nil) then
             ---@cast options NumOptions
             local num = tonumber(res);
@@ -150,6 +152,7 @@ function Ask.ask(question, options)
                 return options.data.blankDefault;
             end
                 
+        ---@diagnostic disable-next-line: undefined-field
         elseif (options.data.bool ~= nil) then
             ---@cast options BoolOptions
             if (res == options.data.bool.truePattern) then
@@ -174,8 +177,8 @@ end
 ---@field byIndex string[]?
 ---@field byKey table<string, any>?
 ---@field byValue table<any, string>?
----@field min integer
----@field max integer
+---@field min integer?
+---@field max integer?
 
 ---@param message string
 ---@param options ChooseOptions

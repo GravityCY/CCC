@@ -19,6 +19,7 @@ Chamber.__name = "chamber";
 local function newChamber(railAddr, relayAddr, dequeueAddr, entityName)
     ---@class Chamber
     local self = {
+        ---@diagnostic disable-next-line: assign-type-mismatch
         rail = peripheral.wrap(railAddr); ---@type turtlematic.peripheral.Rail
         junctionRelay = Relay.wrap(peripheral.wrap(relayAddr)); ---@type Relay
         dequeueRelay = Relay.wrap(peripheral.wrap(dequeueAddr)); ---@type Relay
@@ -27,6 +28,7 @@ local function newChamber(railAddr, relayAddr, dequeueAddr, entityName)
         count = 0;
         limit = 5;
     }
+
 
     return setmetatable(self, Chamber);
 end
@@ -93,13 +95,18 @@ local RAIL_SWITCHING_WAIT = 0.4;
 local CIRCULATE_COOLDOWN = 0.5;
 local TRY_CIRCULATE = data:getOrSet("TRY_CIRCULATE", 3);
 
+---@diagnostic disable-next-line: param-type-mismatch
 local scanner1 = Scanner.new(peripheral.wrap("left"))
+---@diagnostic disable-next-line: param-type-mismatch
 local scanner2 = Scanner.new(peripheral.wrap("right"))
 local lastScannerLeft = false;
 local detectorRail = Rail.wrap(peripheral.wrap("front")) ---@type Rail;
 
+---@diagnostic disable-next-line: param-type-mismatch
 local buffer = Inventorio.new(peripheral.find("minecraft:chest"));
+---@diagnostic disable-next-line: param-type-mismatch
 local hopper = Inventorio.new(peripheral.find("minecraft:hopper"));
+---@diagnostic disable-next-line: param-type-mismatch
 local dispenser = Inventorio.new(peripheral.find("minecraft:dispenser"));
 
 local overflowRelay = getPeripheral("overflowRelay", "redstone_relay", Relay.wrap); ---@type Relay
@@ -177,7 +184,7 @@ local function sendChamber(entity, minecartUuid)
 end
 
 local function sendOverflow(amount)
-    overflowRelay:tick("top", not defaultTowardsJunction, RAIL_SWITCHING_WAIT);
+    overflowRelay:tick("top", not defaultTowardsJunction, defaultTowardsJunction, RAIL_SWITCHING_WAIT);
     incrementData("circulating", -amount, 0);
     incrementData("overflowCount", amount, 0);
 end
@@ -192,7 +199,7 @@ local function circulate(n)
         local tts = math.max(CIRCULATE_COOLDOWN - (os.clock() - lastCirculation), 0);
         if (tts ~= 0) then sleep(tts); end
         if (buffer:pushName(dispenser, "minecraft:minecart", 1) == 0) then return false; end
-        dispenserRelay:tick(nil, true, 0.1);
+        dispenserRelay:tick(nil, true, false, 0.1);
         
         lastCirculation = os.clock();
         incrementData("circulating", 1, 0)
@@ -262,7 +269,7 @@ local function mainThread()
             else scanner = scanner1; end
             scanner:await("portableUniversalScan");
 
-            Redstone:tick("top", true, 0.1);
+            Redstone:tick("top", true, false, 0.1);
             local newUuid, minecarts = detectorRail:awaitMinecart(lastUuid, 0.75);
 
             if (newUuid ~= nil and minecarts ~= nil) then
@@ -389,7 +396,7 @@ local function createDequeueWatcher(chamber)
         repeat
             local any = chamber.dequeueRelay:awaitSidePoll("back", 0.1, 1, 15);
             if (any ~= nil and chamber.count > 0) then
-                chamber.dequeueRelay:tick("front", true, 0.1);
+                chamber.dequeueRelay:tick("front", true, false, 0.1);
                 chamber.count = chamber.count - 1;
                 pprint("Dequeueing 1 '%s' (%d/%d)", Identifier.getPrettyPath(chamber.entityName), chamber.count, chamber.limit);
                 data:save();

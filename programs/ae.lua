@@ -330,6 +330,8 @@ local function importCmd(args)
         if (srcAddr == nil) then return end
 
         local srcInv = peripheral.wrap(srcAddr);
+        ---@cast srcInv ccTweaked.peripherals.Inventory
+
         local importer = Porter.Importer.new();
         if (not porterFilterForm(importer)) then return end
 
@@ -387,6 +389,7 @@ local function exportCmd(args)
         if (dstAddr == nil) then return end
 
         local dstInv = peripheral.wrap(dstAddr);
+        ---@cast dstInv ccTweaked.peripherals.Inventory
         local exporter = Porter.Exporter.new();
         if (not porterFilterForm(exporter)) then return end
 

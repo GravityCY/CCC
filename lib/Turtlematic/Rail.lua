@@ -39,6 +39,7 @@ function Rail:awaitMinecart(lastUuid, timeout)
         
         local minecart = minecarts[1];
         if (minecart and minecart.uuid ~= lastUuid) then return minecart.uuid, minecarts; end
+        ---@diagnostic disable-next-line: missing-return
     end
 end
 
