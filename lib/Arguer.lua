@@ -10,33 +10,152 @@ Arguer.__index = Arguer;
 local Command = {};
 Command.__index = Command;
 
+---@class Arguer.OptionalArgument
+local OptionalArgument = {};
+OptionalArgument.__index = OptionalArgument;
+
+---@param arg Arguer.OptionalArgument
+---@param it structs.PeekableIterator<string>
+local function parseValue(arg, it)
+    if (it:peek() == "=") then
+        it:skip();
+        local value = it:next(); ---@cast value string
+        if (not String.startsWith(value, "-")) then
+            if (arg.data.typeFormatter ~= nil) then
+                value = arg.data.typeFormatter(value);
+                if (value == nil) then
+                    error("invalid value for " .. arg.data.name .. " expected a " .. arg.data.expectedType, 0);
+                end
+            end
+            return value;
+        else
+            error("expected a value right after... instead got another argument?", 0);
+        end
+    else
+        print("expected '='");
+    end
+end
+
+---@param arg Arguer.OptionalArgument
+---@param it structs.PeekableIterator<string>
+---@param input string
+---@param data Arguer.Args
+local function parseOpt(arg, it, input, data)
+    local result;
+    if (it:peek() == "=") then
+        local res = {pcall(parseValue, arg, it)};
+
+        if (not res[1]) then
+            error(input ..": " .. res[2], 0);
+        end
+        result = res[2];
+    elseif (arg.data.hasDefault) then
+        result = arg.data.default;
+    end
+
+    data.optional[arg.data.name] = result;
+end
+
+local function tokenize(str)
+    local spacedOut = String.split(str, " ");
+
+    local tokens = {};
+
+    for _, str2 in ipairs(spacedOut) do
+        local equaledOut = String.split(str2, "=", true);
+        for _, token in ipairs(equaledOut) do
+            table.insert(tokens, token);
+        end
+    end
+
+    return tokens;
+end
+
+function OptionalArgument:needsArg(v)
+    self.data.needsValue = v;
+    return self;
+end
+
+function OptionalArgument:description(v)
+    self.data.description = v;
+    return self;
+end
+
+function OptionalArgument:short(v)
+    self.data.shortName = v;
+    return self;
+end
+
+function OptionalArgument:default(v)
+    self.data.hasDefault = true;
+    self.data.default = v;
+    return self;
+end
+
+function OptionalArgument:register()
+    self.data.parent.argRegistry[self.data.name] = self;
+    if (self.data.shortName ~= nil) then
+        self.data.parent.shortRegistry[self.data.shortName] = self;
+    end
+end
+
 ---@param name string
----@param shortName string
----@param description string
-function Command:optional(name, shortName, description)
+---@return Arguer.OptionalArgument
+function Command:optional(name, expectedType)
     ---@class Arguer.OptionalArgument
     local optional = {
-        name = name;
-        shortName = shortName;
-        description = description;
+        data = {
+            name = name;
+            expectedType = expectedType;
+            typeFormatter = nil; ---@type fun(v: any): any
+            shortName = nil; ---@type string
+            description = nil; ---@type string
+            hasDefault = false;
+            default = nil;
+            parent = self; ---@type Arguer.Command
+        }
     };
 
-    self.argRegistry[name] = optional;
-    if (shortName ~= nil) then
-        self.shortRegistry[shortName] = optional;
+    if (expectedType == "number") then
+        optional.data.typeFormatter = tonumber;
+    elseif (expectedType == "boolean") then
+        optional.data.typeFormatter = function(v)
+            if (v == "true") then return true;
+            elseif (v == "false") then return false; end
+        end;
     end
+
+    return setmetatable(optional, OptionalArgument);
 end
 
 ---@param name string
 ---@param index integer
 ---@param description string
-function Command:default(name, index, description)
+function Command:default(name, expectedType, index, description)
     ---@class Arguer.DefaultArgument
     local default = {
-        name = name;
-        index = index;
-        description = description;
+        data = {
+            ---@type string
+            name = name;
+            ---@type string
+            expectedType = expectedType;
+            ---@type fun(v: string): any
+            typeFormatter = nil;
+            ---@type integer
+            index = index;
+            ---@type string
+            description = description;
+        }
     };
+
+    if (expectedType == "number") then
+        default.data.typeFormatter = tonumber;
+    elseif (expectedType == "boolean") then
+        default.data.typeFormatter = function(v)
+            if (v == "true") then return true;
+            elseif (v == "false") then return false; end
+        end
+    end
 
     index = index or (#self.defaultRegistry + 1);
     self.defaultRegistry[index] = default;
@@ -50,10 +169,13 @@ function Command:parse(it)
         optional = {};
     };
 
+    local totalDefaults = #self.defaultRegistry;
+    local defaultsAdded = 0;
+
     while (it:hasNext()) do
         local cur = it:next();
         ---@cast cur string
-        
+
         local isShort = String.startsWith(cur, "-");
         local isFull = String.startsWith(cur, "--");
 
@@ -70,29 +192,30 @@ function Command:parse(it)
             end
 
             if (arg ~= nil) then
-                if (it:hasNext()) then
-                    local value = it:next(); ---@cast value string
-                    if (not String.startsWith(value, "-")) then
-                        data.optional[arg.name] = value;
-                    else
-                        error(cur..": expected a value right after... instead got another argument?", 0);
-                    end
-                else
-                    error(cur..": expected a value right after...", 0);
-                end
+                parseOpt(arg, it, cur, data);
             else
                 error("unknown argument " .. key, 0);
             end
         else
-            data.defaults[#data.defaults + 1] = cur;
+            local value = cur;
+            local index = defaultsAdded + 1;
+            local arg = self.defaultRegistry[index];
+            if (arg.data.typeFormatter ~= nil) then
+                value = arg.data.typeFormatter(value);
+                if (value == nil) then
+                    error("invalid value for " .. arg.data.name .. " expected a " .. arg.data.expectedType, 0);
+                end
+            end
+            defaultsAdded = defaultsAdded + 1;
+            data.defaults[arg.data.name] = value;
         end
     end
 
-    if (#data.defaults ~= #self.defaultRegistry) then
-        local start = math.max(#data.defaults + 1, 1);
+    if (defaultsAdded ~= totalDefaults) then
+        local start = math.max(defaultsAdded + 1, 1);
         for i = start, #self.defaultRegistry do
             local default = self.defaultRegistry[i];
-            error("missing default argument '" .. default.name .. "'", 0);
+            error("missing default argument '" .. default.data.name .. "'", 0);
         end
     end
 
@@ -107,7 +230,6 @@ function ArguerLib.new()
     return setmetatable(self, Arguer);
 end
 
----comment
 ---@param name string
 ---@param runFunc fun(data: Arguer.Args)
 ---@return Arguer.Command
@@ -127,9 +249,9 @@ function Arguer:command(name, runFunc)
     return command;
 end
 
-function Arguer:parse(...)
-    local it = PeekableIterator.new({...}, 1); ---@type structs.PeekableIterator<string>
-    
+function Arguer:parse(str)
+    local it = PeekableIterator.new(tokenize(str), 1); ---@type structs.PeekableIterator<string>
+
     if (not it:hasNext()) then
         print("expected a command...");
         return false;
@@ -151,11 +273,6 @@ function Arguer:parse(...)
     end
 
     return true;
-end
-
-function Arguer:parseString(str)
-    local args = String.split(str, " ");
-    self:parse(table.unpack(args));
 end
 
 return ArguerLib;
