@@ -35,6 +35,8 @@ end
 ---@param str string
 ---@param match string
 function String.startsWith(str, match)
+    if (#str < #match) then return false; end
+
     for i = 1, #match do
         local c = str:sub(i, i);
         if (c ~= match:sub(i, i)) then return false; end
@@ -42,14 +44,53 @@ function String.startsWith(str, match)
     return true;
 end
 
-function String.split(str, separator)
-    local tab = {};
+--- Hello to the world, to -> ["Hello ", " the world"]
+function String.split(str, separator, keepSeparator)
+    assert(separator ~= "", "separator is empty?");
+    if (keepSeparator == nil) then keepSeparator = false; end
 
-    if (separator == nil or separator == " ") then separator = "%s"; end
-    for s in string.gmatch(str, "[^" .. separator .. "]+") do
-        table.insert(tab, s);
+    local split = {};
+    local current = {};
+    local check = {};
+    
+    for i = 1, #str do
+        local c = str:sub(i, i);
+        local sc = separator:sub(#check + 1, #check + 1);
+
+        if (c == sc) then
+            table.insert(check, c);
+
+            if (#check == #separator) then
+                if (#current ~= 0) then
+                    table.insert(split, table.concat(current));
+                end
+
+                if (keepSeparator) then
+                    table.insert(split, table.concat(check));
+                end
+
+                current = {};
+                check = {};
+            end
+        else
+            if (#check ~= 0) then
+                table.insert(current, table.concat(check))
+                check = {};
+            end
+
+            table.insert(current, c);
+        end
     end
-    return tab;
+
+    if (#current ~= 0) then
+        table.insert(split, table.concat(current))
+    end
+
+    if (#check ~= 0) then
+        table.insert(split, table.concat(check));
+    end
+
+    return split;
 end
 
 --- <b>Wraps a string to a certain length.</b>

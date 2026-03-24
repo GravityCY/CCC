@@ -16,6 +16,7 @@ function PeekableIterator.new(list, startIndex)
     return setmetatable(self, {__index = PeekableIterator});
 end
 
+---@return boolean
 function PeekableIterator:hasNext()
     return self.data.index <= #self.data.list;
 end
@@ -28,6 +29,14 @@ function PeekableIterator:next()
     return value;
 end
 
+---@param n integer?
+function PeekableIterator:skip(n)
+    n = n or 1;
+
+    self.data.index = self.data.index + n;
+end
+
+---@return T
 function PeekableIterator:peek()
     return self.data.list[self.data.index];
 end
